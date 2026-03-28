@@ -26,9 +26,10 @@ struct SearchMessagesTool {
     let offset = max(input.offset ?? 0, 0)
     let escapedQuery = escapeAppleScriptString(input.query)
 
-    // Build whose clause: match query against subject, sender, or content
+    // only match against subject and sender — content contains forces Mail to load every
+    // message body, which freezes Mail.app and causes apple event timeouts (-1712)
     var whoseClauses: [String] = [
-      "(subject contains \"\(escapedQuery)\" or sender contains \"\(escapedQuery)\" or content contains \"\(escapedQuery)\")"
+      "(subject contains \"\(escapedQuery)\" or sender contains \"\(escapedQuery)\")"
     ]
     if let since = input.since {
       let dateStr = escapeAppleScriptString(formatDateForAppleScript(since))
