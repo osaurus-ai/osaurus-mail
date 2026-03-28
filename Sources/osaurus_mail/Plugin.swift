@@ -125,11 +125,11 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
             },
             {
               "id": "search_messages",
-              "description": "Search for messages by keyword across subject, sender, and body text. Returns the same message summary format as list_messages (no body — use read_message for that). Use this instead of list_messages when you need to find messages by content rather than browsing a specific mailbox.",
+              "description": "Search for messages by keyword across subject and sender. Returns the same message summary format as list_messages (no body — use read_message for that). Searches subject line and sender name/address only; body-text search is not supported. Use this instead of list_messages when you need to find messages by subject or sender rather than browsing a specific mailbox.",
               "parameters": {
                 "type": "object",
                 "properties": {
-                  "query": {"type":"string","description":"Search keywords (matched against subject, sender name/address, and body text)"},
+                  "query": {"type":"string","description":"Search keywords (matched against subject line and sender name/address)"},
                   "mailbox_path": {"type":"string","description":"Limit search to a specific mailbox path. If omitted, searches all mailboxes."},
                   "limit": {"type":"integer","description":"Max results, 1-50 (default: 10)"},
                   "offset": {"type":"integer","description":"Skip N results for pagination (default: 0)"},

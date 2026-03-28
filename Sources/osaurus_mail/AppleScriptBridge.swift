@@ -8,9 +8,14 @@ enum AppleScriptResult {
   case error(MailPluginError, String)
 }
 
+/// how long to wait for an AppleScript before killing the process and returning an error.
+private let appleScriptTimeoutSeconds: TimeInterval = 25
+
 /// Execute an AppleScript source string and return the result.
 ///
 /// Uses `Process` with `/usr/bin/osascript` for execution.
+/// Kills the process and returns an error if it does not finish within
+/// `appleScriptTimeoutSeconds`, preventing Mail.app from freezing the caller.
 /// Maps common Apple Mail errors to `MailPluginError` codes.
 func runAppleScript(_ source: String) -> AppleScriptResult {
   let process = Process()
@@ -24,10 +29,19 @@ func runAppleScript(_ source: String) -> AppleScriptResult {
 
   do {
     try process.run()
-    process.waitUntilExit()
   } catch {
     return .error(.mailNotRunning, "Failed to execute AppleScript: \(error.localizedDescription)")
   }
+
+  // kill the process if Mail doesn't respond in time
+  let killItem = DispatchWorkItem {
+    if process.isRunning { process.terminate() }
+  }
+  DispatchQueue.global().asyncAfter(
+    deadline: .now() + appleScriptTimeoutSeconds, execute: killItem)
+
+  process.waitUntilExit()
+  killItem.cancel()
 
   let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
   let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
@@ -47,6 +61,16 @@ func runAppleScript(_ source: String) -> AppleScriptResult {
 private func mapAppleScriptError(_ stderr: String) -> AppleScriptResult {
   let lower = stderr.lowercased()
 
+  // -1712: apple event timed out — Mail is running but too busy to respond.
+  // must be checked before the generic "not running" branch so it isn't misclassified.
+  if lower.contains("-1712") || lower.contains("appleevent timed out")
+    || lower.contains("apple event timed out")
+  {
+    return .error(
+      .invalidParameter,
+      "Mail did not respond in time (Apple Event timed out). Mail may be busy — wait a moment and try again."
+    )
+  }
   if lower.contains("not running") || lower.contains("application isn") {
     return .error(.mailNotRunning, "Mail.app is not running. Please open Mail and try again.")
   }
