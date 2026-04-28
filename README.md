@@ -12,7 +12,7 @@ An Osaurus plugin that gives agents the ability to read, search, compose, and ma
 | `list_mailboxes` | List all mailboxes across all accounts | auto |
 | `list_messages` | List message summaries in a mailbox with filters and pagination | auto |
 | `read_message` | Read the full content of a specific email | ask |
-| `search_messages` | Search messages by keyword across subject, sender, and body | auto |
+| `search_messages` | Search messages by keyword across subject and sender summaries only | auto |
 | `compose_message` | Compose a new email (draft or send) | ask |
 | `reply_to_message` | Reply to an existing email (draft or send) | ask |
 | `move_message` | Move a message to a different mailbox | ask |
@@ -74,6 +74,9 @@ All tools communicate with Apple Mail via AppleScript. The plugin:
 2. Identifies the right message from summaries
 3. Calls `read_message(message_id: "...")` for full context
 4. Drafts reply, calls `reply_to_message(message_id: "...", body: "...", send: false)` → draft opens for user review
+
+`search_messages` does not search message bodies. Use it to find likely messages by
+subject or sender, then call `read_message` on selected results when body context is needed.
 
 **"Archive everything from GitHub older than a week"**
 1. Agent calls `list_messages(mailbox_path: "iCloud/INBOX", from_contains: "github.com", before: "2026-02-06T00:00:00Z")`

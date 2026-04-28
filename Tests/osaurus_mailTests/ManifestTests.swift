@@ -164,4 +164,17 @@ struct ManifestTests {
     #expect(mmRequired.contains("message_id"))
     #expect(mmRequired.contains("destination_mailbox_path"))
   }
+
+  @Test("search_messages describes the real subject and sender search scope")
+  func searchMessagesDescriptionScope() throws {
+    let manifest = try loadManifest()
+    let capabilities = manifest["capabilities"] as? [String: Any]
+    let tools = capabilities?["tools"] as? [[String: Any]] ?? []
+    let searchTool = tools.first { $0["id"] as? String == "search_messages" }
+    let description = searchTool?["description"] as? String ?? ""
+
+    #expect(description.localizedCaseInsensitiveContains("subject"))
+    #expect(description.localizedCaseInsensitiveContains("sender"))
+    #expect(description.localizedCaseInsensitiveContains("body-text search is not supported"))
+  }
 }
