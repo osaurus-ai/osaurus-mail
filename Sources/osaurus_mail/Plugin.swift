@@ -84,6 +84,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
           "tools": [
             {
               "id": "list_mailboxes",
+              "widget": true,
               "description": "List all mailboxes in Apple Mail. Returns a flat list of mailbox_path identifiers (e.g. 'iCloud/INBOX', 'Gmail/[Gmail]/All Mail') that are used as the mailbox_path parameter in other tools. Call this first to discover available mailboxes.",
               "parameters": {"type":"object","properties":{}},
               "requirements": ["automation"],
@@ -91,6 +92,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
             },
             {
               "id": "list_messages",
+              "widget": true,
               "description": "List message summaries in a mailbox. Returns subject, sender, date, and flags — but NOT the message body. Use read_message to get the body of a specific message. Supports filtering and pagination via offset. Messages are returned newest-first.",
               "parameters": {
                 "type": "object",
@@ -210,6 +212,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
             },
             {
               "id": "get_thread",
+              "widget": true,
               "description": "Get all messages in a conversation thread, ordered chronologically (oldest first). Provide any message_id from the thread. Returns summaries by default — set include_bodies to true to include message bodies. Thread detection is based on subject matching and In-Reply-To/References headers (best-effort).",
               "parameters": {
                 "type": "object",
