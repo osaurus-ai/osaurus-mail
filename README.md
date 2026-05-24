@@ -55,7 +55,7 @@ Open Osaurus, go to Tools settings (Cmd+Shift+M → Tools), and verify the plugi
 
 All tools communicate with Apple Mail via AppleScript. The plugin:
 
-- **Identifies mailboxes** using qualified paths like `iCloud/INBOX` or `Gmail/Work/Projects`
+- **Identifies mailboxes** using qualified paths like `you@gmail.com/INBOX` or `you@work.com/Work/Projects` (the account segment is the account's email address, so accounts that share a display name stay distinct; account names are still accepted)
 - **Identifies messages** using RFC 2822 Message-ID headers, which are globally unique and survive Mail.app restarts
 - **Caches** message ID → internal ID mappings in an LRU cache (10K entries) to keep lookups fast
 - **Paginates** list and search results with `limit`/`offset`/`has_more`/`next_offset`

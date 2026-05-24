@@ -50,12 +50,13 @@ struct ListMessagesTool {
       whoseClauses.append("sender contains \"\(escaped)\"")
     }
 
-    let mailboxRef = parsed.applescriptRef
+    let mailboxRef = parsed.mailboxRef
     let whoseStr = whoseClauses.isEmpty ? "" : " whose \(whoseClauses.joined(separator: " and "))"
 
     // Get total count with filters
     let countScript = """
       tell application "Mail"
+          \(parsed.resolveAccountScript)
           return count of (every message of \(mailboxRef)\(whoseStr))
       end tell
       """
@@ -83,6 +84,7 @@ struct ListMessagesTool {
 
     let fetchScript = """
       tell application "Mail"
+          \(parsed.resolveAccountScript)
           set msgs to (every message of \(mailboxRef)\(whoseStr))
           set output to ""
           repeat with i from \(startIdx) to \(endIdx)

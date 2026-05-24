@@ -48,9 +48,9 @@ struct SearchMessagesTool {
           message:
             "Invalid mailbox path format: '\(mailboxPath)'. Expected format: 'Account/Mailbox'.")
       }
-      let searchScope = "every message of \(parsed.applescriptRef)"
+      let searchScope = "every message of \(parsed.mailboxRef)"
       return searchInMailbox(
-        searchScope: searchScope, whoseStr: whoseStr,
+        searchScope: searchScope, resolveScript: parsed.resolveAccountScript, whoseStr: whoseStr,
         limit: limit, offset: offset, cache: cache)
     } else {
       return searchAllMailboxes(
@@ -60,11 +60,12 @@ struct SearchMessagesTool {
   }
 
   private func searchInMailbox(
-    searchScope: String, whoseStr: String,
+    searchScope: String, resolveScript: String, whoseStr: String,
     limit: Int, offset: Int, cache: MessageCache
   ) -> String {
     let countScript = """
       tell application "Mail"
+          \(resolveScript)
           return count of (\(searchScope) whose \(whoseStr))
       end tell
       """
@@ -91,6 +92,7 @@ struct SearchMessagesTool {
 
     let fetchScript = """
       tell application "Mail"
+          \(resolveScript)
           set msgs to (\(searchScope) whose \(whoseStr))
           set output to ""
           repeat with i from \(startIdx) to \(endIdx)

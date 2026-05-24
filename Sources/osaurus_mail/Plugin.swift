@@ -85,7 +85,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
             {
               "id": "list_mailboxes",
               "widget": true,
-              "description": "List all mailboxes in Apple Mail. Returns a flat list of mailbox_path identifiers (e.g. 'iCloud/INBOX', 'Gmail/[Gmail]/All Mail') that are used as the mailbox_path parameter in other tools. Call this first to discover available mailboxes.",
+              "description": "List all mailboxes in Apple Mail. Returns a flat list of mailbox_path identifiers (e.g. 'you@gmail.com/INBOX', 'you@gmail.com/[Gmail]/All Mail') plus the account_email for each, used as the mailbox_path parameter in other tools. The path's account segment is the account's email address (uniquely identifies accounts that share a display name). Call this first to discover available mailboxes.",
               "parameters": {"type":"object","properties":{}},
               "requirements": ["automation"],
               "permission_policy": "auto"
@@ -97,7 +97,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
               "parameters": {
                 "type": "object",
                 "properties": {
-                  "mailbox_path": {"type":"string","description":"Mailbox path from list_mailboxes (e.g. 'iCloud/INBOX')"},
+                  "mailbox_path": {"type":"string","description":"Mailbox path from list_mailboxes (e.g. 'you@gmail.com/INBOX'). The account segment is an email address; an account name is also accepted."},
                   "limit": {"type":"integer","description":"Max messages to return, 1-50 (default: 20)"},
                   "offset": {"type":"integer","description":"Number of messages to skip for pagination (default: 0). Use the next_offset value from a previous response to get the next page."},
                   "unread_only": {"type":"boolean","description":"Only return unread messages (default: false)"},
@@ -132,7 +132,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
                 "type": "object",
                 "properties": {
                   "query": {"type":"string","description":"Search keywords (matched against subject line and sender name/address)"},
-                  "mailbox_path": {"type":"string","description":"Limit search to a specific mailbox path. If omitted, searches all mailboxes."},
+                  "mailbox_path": {"type":"string","description":"Limit search to a specific mailbox path from list_mailboxes (e.g. 'you@gmail.com/INBOX'). If omitted, searches all mailboxes."},
                   "limit": {"type":"integer","description":"Max results, 1-50 (default: 10)"},
                   "offset": {"type":"integer","description":"Skip N results for pagination (default: 0)"},
                   "since": {"type":"string","description":"Only messages after this date (ISO 8601)"},
@@ -155,7 +155,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
                   "html_body": {"type":"string","description":"HTML body (takes precedence over body)"},
                   "cc": {"type":"array","items":{"type":"string"},"description":"CC recipients"},
                   "bcc": {"type":"array","items":{"type":"string"},"description":"BCC recipients"},
-                  "from_account": {"type":"string","description":"Send from a specific account. Use the account prefix of a mailbox_path (e.g. 'iCloud' or 'Gmail'). If omitted, uses Mail's default account."},
+                  "from_account": {"type":"string","description":"Send from a specific account, given as its email address or account name (e.g. 'you@gmail.com'). If omitted, uses Mail's default account."},
                   "send": {"type":"boolean","description":"true = send immediately, false = open as draft for user review (default: false)"}
                 },
                 "required": ["to","subject"]
@@ -187,7 +187,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
                 "type": "object",
                 "properties": {
                   "message_id": {"type":"string","description":"RFC Message-ID of the message to move"},
-                  "destination_mailbox_path": {"type":"string","description":"Target mailbox path (e.g. 'iCloud/Archive', 'Gmail/Trash')"}
+                  "destination_mailbox_path": {"type":"string","description":"Target mailbox path from list_mailboxes (e.g. 'you@gmail.com/Archive'). Must be in the same account as the message."}
                 },
                 "required": ["message_id","destination_mailbox_path"]
               },

@@ -27,20 +27,22 @@ struct MoveMessageTool {
     }
 
     let resolveScript = buildResolveScript(messageID: messageID, cache: cache)
-    let destRef = destParsed.applescriptRef
-    let destAccount = destParsed.account
+    let destRef = destParsed.mailboxRef
 
-    // Move the message and return the source mailbox path
+    // Move the message and return the source mailbox path. Compares unique account ids
+    // (not names) so the same-account guard holds even when two accounts share a name.
     let script = """
       tell application "Mail"
           \(resolveScript)
+          \(destParsed.resolveAccountScript)
           set srcMbox to mailbox of m
           set srcMboxName to name of srcMbox
-          set srcAcctName to name of account of srcMbox
+          set srcAcct to account of srcMbox
+          set srcAcctName to name of srcAcct
           set srcPath to srcAcctName & "/" & srcMboxName
-          -- Validate same account
-          if srcAcctName is not "\(escapeAppleScriptString(destAccount))" then
-              error "Cross-account move: source is " & srcAcctName & ", destination is \(escapeAppleScriptString(destAccount))"
+          -- Validate same account by unique id
+          if (id of srcAcct) is not (id of targetAccount) then
+              error "Cross-account move: source is " & srcAcctName & ", destination is " & (name of targetAccount)
           end if
           move m to \(destRef)
           return srcPath
