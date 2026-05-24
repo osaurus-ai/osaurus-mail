@@ -59,7 +59,12 @@ func runAppleScript(_ source: String) -> AppleScriptResult {
 
 /// Map an AppleScript error message to a structured plugin error.
 private func mapAppleScriptError(_ stderr: String) -> AppleScriptResult {
+  // Mail emits typographic apostrophes ("Can’t get account") — normalize to ASCII
+  // so the substring checks below actually match instead of falling through to the
+  // generic "not running" catch-all.
   let lower = stderr.lowercased()
+    .replacingOccurrences(of: "\u{2019}", with: "'")
+    .replacingOccurrences(of: "\u{2018}", with: "'")
 
   // -1712: apple event timed out — Mail is running but too busy to respond.
   // must be checked before the generic "not running" branch so it isn't misclassified.
@@ -83,7 +88,10 @@ private func mapAppleScriptError(_ stderr: String) -> AppleScriptResult {
     )
   }
   if lower.contains("can't get mailbox") || lower.contains("can't get account") {
-    return .error(.mailboxNotFound, stderr)
+    return .error(
+      .mailboxNotFound,
+      "Mailbox or account not found. Run list_mailboxes to see the exact account and mailbox names, then use the 'Account/Mailbox' format (e.g. 'Google/INBOX')."
+    )
   }
   if lower.contains("can't get message") {
     return .error(.messageNotFound, stderr)
