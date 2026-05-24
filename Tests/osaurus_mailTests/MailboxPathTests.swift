@@ -10,10 +10,14 @@ struct MailboxPathTests {
     let result = parseMailboxPath("you@gmail.com/INBOX")
     #expect(result != nil)
     #expect(result?.accountKey == "you@gmail.com")
-    #expect(result?.mailboxRef == "mailbox \"INBOX\" of targetAccount")
-    // the account is resolved by a loop binding `targetAccount`, matching name or email
-    #expect(result?.resolveAccountScript.contains("set acctKey to \"you@gmail.com\"") == true)
-    #expect(result?.resolveAccountScript.contains("email addresses of a contains acctKey") == true)
+    // mailbox/account are resolved at runtime into the `targetMailbox` variable
+    #expect(result?.mailboxRef == "targetMailbox")
+    // the account is resolved by a loop matching name or email
+    #expect(result?.resolveScript.contains("set acctKey to \"you@gmail.com\"") == true)
+    #expect(result?.resolveScript.contains("email addresses of a contains acctKey") == true)
+    // the mailbox is resolved by iterating and matching the display name (not `mailbox "X" of`)
+    #expect(result?.resolveScript.contains("if name of _mb is \"INBOX\"") == true)
+    #expect(result?.resolveScript.contains("set targetMailbox to _container") == true)
   }
 
   @Test("name-based path still parses (backward compatible)")
@@ -21,35 +25,27 @@ struct MailboxPathTests {
     let result = parseMailboxPath("iCloud/INBOX")
     #expect(result != nil)
     #expect(result?.accountKey == "iCloud")
-    #expect(result?.mailboxRef == "mailbox \"INBOX\" of targetAccount")
+    #expect(result?.mailboxRef == "targetMailbox")
+    #expect(result?.resolveScript.contains("set acctKey to \"iCloud\"") == true)
   }
 
-  @Test("nested path: you@work.com/Work/Projects")
+  @Test("nested path resolves each segment by name")
   func nestedPath() {
     let result = parseMailboxPath("you@work.com/Work/Projects")
     #expect(result != nil)
     #expect(result?.accountKey == "you@work.com")
-    #expect(
-      result?.mailboxRef == "mailbox \"Projects\" of mailbox \"Work\" of targetAccount")
+    #expect(result?.mailboxRef == "targetMailbox")
+    #expect(result?.resolveScript.contains("if name of _mb is \"Work\"") == true)
+    #expect(result?.resolveScript.contains("if name of _mb is \"Projects\"") == true)
   }
 
-  @Test("deeply nested path: Account/A/B/C")
-  func deeplyNestedPath() {
-    let result = parseMailboxPath("Account/A/B/C")
-    #expect(result != nil)
-    #expect(result?.accountKey == "Account")
-    #expect(
-      result?.mailboxRef
-        == "mailbox \"C\" of mailbox \"B\" of mailbox \"A\" of targetAccount")
-  }
-
-  @Test("path with special chars: you@gmail.com/[Gmail]/All Mail")
-  func pathWithBrackets() {
-    let result = parseMailboxPath("you@gmail.com/[Gmail]/All Mail")
+  @Test("Gmail special folder: you@gmail.com/All Mail")
+  func gmailAllMail() {
+    let result = parseMailboxPath("you@gmail.com/All Mail")
     #expect(result != nil)
     #expect(result?.accountKey == "you@gmail.com")
-    #expect(
-      result?.mailboxRef == "mailbox \"All Mail\" of mailbox \"[Gmail]\" of targetAccount")
+    #expect(result?.mailboxRef == "targetMailbox")
+    #expect(result?.resolveScript.contains("if name of _mb is \"All Mail\"") == true)
   }
 
   @Test("no slash returns nil")

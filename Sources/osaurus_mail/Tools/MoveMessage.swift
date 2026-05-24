@@ -34,7 +34,7 @@ struct MoveMessageTool {
     let script = """
       tell application "Mail"
           \(resolveScript)
-          \(destParsed.resolveAccountScript)
+          \(destParsed.resolveScript)
           set srcMbox to mailbox of m
           set srcMboxName to name of srcMbox
           set srcAcct to account of srcMbox

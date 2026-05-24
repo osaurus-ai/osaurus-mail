@@ -56,7 +56,7 @@ struct ListMessagesTool {
     // Get total count with filters
     let countScript = """
       tell application "Mail"
-          \(parsed.resolveAccountScript)
+          \(parsed.resolveScript)
           return count of (every message of \(mailboxRef)\(whoseStr))
       end tell
       """
@@ -84,7 +84,7 @@ struct ListMessagesTool {
 
     let fetchScript = """
       tell application "Mail"
-          \(parsed.resolveAccountScript)
+          \(parsed.resolveScript)
           set msgs to (every message of \(mailboxRef)\(whoseStr))
           set output to ""
           repeat with i from \(startIdx) to \(endIdx)
