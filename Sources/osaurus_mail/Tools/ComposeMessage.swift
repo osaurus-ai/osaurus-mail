@@ -63,13 +63,14 @@ struct ComposeMessageTool {
       bodyLine = ""
     }
 
-    // Sender account
+    // Sender account — accepts an email address or account name; silently keeps Mail's
+    // default sender if the account can't be resolved (wrapped in try)
     var senderLine = ""
     if let fromAccount = input.from_account {
-      let escaped = escapeAppleScriptString(fromAccount)
       senderLine = """
         try
-            set senderAddr to email addresses of account "\(escaped)"
+            \(resolveAccountScript(forKey: fromAccount))
+            set senderAddr to email addresses of targetAccount
             if (count of senderAddr) > 0 then
                 set sender of msg to (item 1 of senderAddr as text)
             end if

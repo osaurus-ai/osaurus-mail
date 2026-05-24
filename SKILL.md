@@ -28,18 +28,21 @@ Two identifier types are used across all tools. Always pass them verbatim — ne
 
 ### Mailbox Path
 
-Format: `<account>/<mailbox>[/<child>]*`
+Format: `<account>/<mailbox>[/<child>]*` where `<account>` is the account's **email address**
+(uniquely identifies accounts that share a display name). An account *name* is also accepted
+for backward compatibility.
 
 ```
-iCloud/INBOX
-iCloud/Sent
-iCloud/Archive
-Gmail/INBOX
-Gmail/Work/Projects
-Gmail/[Gmail]/All Mail
+you@gmail.com/INBOX
+you@gmail.com/Sent
+you@gmail.com/[Gmail]/All Mail
+you@work.com/INBOX
+you@work.com/Work/Projects
 ```
 
-Returned by `list_mailboxes`. Used as the `mailbox_path` parameter in `list_messages`, `search_messages`, and `move_message`.
+Returned by `list_mailboxes` (which also reports `account_email` per mailbox). Used as the
+`mailbox_path` parameter in `list_messages`, `search_messages`, and `move_message`. Always use
+the exact paths returned by `list_mailboxes` rather than guessing.
 
 ### Message ID
 

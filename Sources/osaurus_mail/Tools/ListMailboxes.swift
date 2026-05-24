@@ -13,17 +13,26 @@ struct ListMailboxesTool {
           set allAccounts to every account
           repeat with acct in allAccounts
               set acctName to name of acct
+              set acctEmail to ""
+              try
+                  set acctEmails to email addresses of acct
+                  if (count of acctEmails) > 0 then set acctEmail to item 1 of acctEmails
+              end try
+              -- prefer the email as the path's account segment (unique across same-named
+              -- accounts); fall back to the name for accounts without an email (e.g. local)
+              set acctKey to acctName
+              if acctEmail is not "" then set acctKey to acctEmail
               set topMailboxes to every mailbox of acct
               repeat with mbox in topMailboxes
                   set mboxName to name of mbox
-                  set fullPath to acctName & "/" & mboxName
+                  set fullPath to acctKey & "/" & mboxName
                   set uc to unread count of mbox
                   try
                       set mc to count of messages of mbox
                   on error
                       set mc to 0
                   end try
-                  set output to output & fullPath & "\\t" & uc & "\\t" & mc & linefeed
+                  set output to output & fullPath & "\\t" & uc & "\\t" & mc & "\\t" & acctEmail & linefeed
                   -- Second level
                   try
                       set childMailboxes to every mailbox of mbox
@@ -36,7 +45,7 @@ struct ListMailboxesTool {
                           on error
                               set childMC to 0
                           end try
-                          set output to output & childPath & "\\t" & childUC & "\\t" & childMC & linefeed
+                          set output to output & childPath & "\\t" & childUC & "\\t" & childMC & "\\t" & acctEmail & linefeed
                           -- Third level
                           try
                               set grandchildren to every mailbox of child
@@ -49,7 +58,7 @@ struct ListMailboxesTool {
                                   on error
                                       set gcMC to 0
                                   end try
-                                  set output to output & gcPath & "\\t" & gcUC & "\\t" & gcMC & linefeed
+                                  set output to output & gcPath & "\\t" & gcUC & "\\t" & gcMC & "\\t" & acctEmail & linefeed
                               end repeat
                           end try
                       end repeat
@@ -70,10 +79,13 @@ struct ListMailboxesTool {
           let mailboxPath = parts[0]
           let unreadCount = Int(parts[1]) ?? 0
           let messageCount = Int(parts[2]) ?? 0
+          // 4th column (added later) is the account's email address; tolerate older output
+          let accountEmail = parts.count >= 4 ? parts[3] : ""
           mailboxes.append([
             "mailbox_path": mailboxPath,
             "unread_count": unreadCount,
             "message_count": messageCount,
+            "account_email": accountEmail,
           ])
         }
       }
