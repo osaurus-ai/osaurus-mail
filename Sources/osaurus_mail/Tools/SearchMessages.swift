@@ -50,7 +50,7 @@ struct SearchMessagesTool {
       }
       let searchScope = "every message of \(parsed.mailboxRef)"
       return searchInMailbox(
-        searchScope: searchScope, resolveScript: parsed.resolveAccountScript, whoseStr: whoseStr,
+        searchScope: searchScope, resolveScript: parsed.resolveScript, whoseStr: whoseStr,
         limit: limit, offset: offset, cache: cache)
     } else {
       return searchAllMailboxes(

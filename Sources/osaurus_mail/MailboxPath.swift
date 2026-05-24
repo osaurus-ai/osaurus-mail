@@ -2,27 +2,31 @@ import Foundation
 
 // MARK: - Mailbox Path Resolution
 
-/// A parsed mailbox path, split into an account-resolution snippet and a mailbox reference
-/// that hangs off the `targetAccount` variable that snippet binds.
+/// A parsed mailbox path, split into a resolution snippet and the variable it binds.
 struct ParsedMailbox {
   /// the raw account segment as supplied (an email address or an account name)
   let accountKey: String
-  /// AppleScript that binds `targetAccount` to the matching account (or errors). Must be
-  /// emitted inside the `tell application "Mail"` block before `mailboxRef` is used.
-  let resolveAccountScript: String
-  /// nested mailbox reference rooted at `targetAccount`,
-  /// e.g. `mailbox "Projects" of mailbox "Work" of targetAccount`
+  /// AppleScript that binds `targetAccount` and `targetMailbox` (or errors). Must be emitted
+  /// inside the `tell application "Mail"` block before `mailboxRef` is used.
+  let resolveScript: String
+  /// the resolved mailbox variable bound by `resolveScript` — always `targetMailbox`
   let mailboxRef: String
 }
 
-/// Parse a qualified mailbox path into an account resolver + mailbox reference.
+/// Parse a qualified mailbox path into an account+mailbox resolver.
 ///
 /// Format: `<account>/<mailbox>[/<child>]*` where `<account>` is the account's **email
 /// address** (preferred — unique across same-named accounts) or its display name (still
 /// accepted for backward compatibility).
-/// - `"you@gmail.com/INBOX"` -> resolves the account whose email is you@gmail.com
-/// - `"iCloud/INBOX"`        -> resolves the account named "iCloud"
-/// - `"Work/Projects"` under `you@work.com` -> `mailbox "Projects" of mailbox "Work" of targetAccount`
+/// - `"you@gmail.com/INBOX"` -> account whose email is you@gmail.com, mailbox named INBOX
+/// - `"iCloud/INBOX"`        -> account named "iCloud"
+/// - `"you@gmail.com/All Mail"` / nested `"…/Work/Projects"` are resolved by matching the
+///   mailbox display `name` at each level.
+///
+/// Mailboxes are resolved by **iterating and matching `name`** rather than `mailbox "X" of …`
+/// because Gmail's special folders (All Mail, Sent Mail, …) report a display name that isn't
+/// directly addressable by that name (lives under `[Gmail]`), so a by-name lookup errors -1728.
+/// Iteration mirrors how `list_mailboxes` enumerates names, so its paths always round-trip.
 ///
 /// Returns `nil` if the path has no `/` separator (invalid format).
 func parseMailboxPath(_ mailboxPath: String) -> ParsedMailbox? {
@@ -42,17 +46,28 @@ func parseMailboxPath(_ mailboxPath: String) -> ParsedMailbox? {
     return nil
   }
 
-  // Build nested mailbox reference rooted at the resolved account variable.
-  var ref = "targetAccount"
+  // Resolve the account, then walk each path segment by matching the mailbox display name
+  // within the current container (account, then nested mailbox).
+  var script = resolveAccountScript(forKey: account)
+  script += "\nset _container to targetAccount\n"
   for segment in segments {
-    let escapedSegment = escapeAppleScriptString(segment)
-    ref = "mailbox \"\(escapedSegment)\" of \(ref)"
-  }
+    let esc = escapeAppleScriptString(segment)
+    script += """
+      set _found to missing value
+      repeat with _mb in (every mailbox of _container)
+          if name of _mb is "\(esc)" then
+              set _found to _mb
+              exit repeat
+          end if
+      end repeat
+      if _found is missing value then error "Can't get mailbox: \(esc)"
+      set _container to _found
 
-  return ParsedMailbox(
-    accountKey: account,
-    resolveAccountScript: resolveAccountScript(forKey: account),
-    mailboxRef: ref)
+      """
+  }
+  script += "set targetMailbox to _container"
+
+  return ParsedMailbox(accountKey: account, resolveScript: script, mailboxRef: "targetMailbox")
 }
 
 /// AppleScript that binds `targetAccount` to the account matching `key` (its email address
