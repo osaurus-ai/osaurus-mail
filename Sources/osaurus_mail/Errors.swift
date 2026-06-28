@@ -47,10 +47,27 @@ enum MailPluginError: String {
   /// Shape: `{"ok":false,"kind":"<kind>","message":"<msg>","retryable":<bool>,"code":"<rawValue>"}`
   /// The original code string is preserved under `code` for backward debugging.
   func json(message: String) -> String {
-    let escaped = jsonEscapeString(message)
-    return
-      "{\"ok\":false,\"kind\":\"\(self.kind)\",\"message\":\"\(escaped)\",\"retryable\":\(self.retryable),\"code\":\"\(self.rawValue)\"}"
+    canonicalErrorEnvelope(
+      kind: self.kind, message: message, retryable: self.retryable, code: self.rawValue)
   }
+}
+
+/// Build a canonical Osaurus error envelope the host recognizes as a failure.
+///
+/// Shape: `{"ok":false,"kind":"<kind>","message":"<msg>","retryable":<bool>[,"code":"<code>"]}`.
+/// Use this for failure paths that don't map to a `MailPluginError` case (e.g. the
+/// plugin entry point's unknown-capability / unknown-tool fallbacks) so they emit the
+/// same shape and are not silently auto-wrapped as a success by the host.
+func canonicalErrorEnvelope(
+  kind: String, message: String, retryable: Bool, code: String? = nil
+) -> String {
+  let escapedMessage = jsonEscapeString(message)
+  var json = "{\"ok\":false,\"kind\":\"\(kind)\",\"message\":\"\(escapedMessage)\",\"retryable\":\(retryable)"
+  if let code = code {
+    json += ",\"code\":\"\(jsonEscapeString(code))\""
+  }
+  json += "}"
+  return json
 }
 
 // MARK: - JSON Helpers
