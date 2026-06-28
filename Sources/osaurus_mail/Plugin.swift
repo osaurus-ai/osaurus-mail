@@ -73,7 +73,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
     let manifest = """
       {
         "plugin_id": "osaurus.mail",
-        "name": "Osaurus Mail",
+        "name": "Mail",
         "version": "0.1.0",
         "description": "Read, search, compose, and manage Apple Mail — locally and privately",
         "license": "MIT",

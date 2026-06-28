@@ -1,12 +1,12 @@
 ---
 name: osaurus-mail
-description: Read, search, compose, and manage Apple Mail emails using the Osaurus Mail plugin. Use when the user asks to check email, read messages, send replies, search their inbox, triage mail, summarize threads, or manage mailboxes.
+description: Read, search, compose, and manage Apple Mail emails using the Mail plugin. Use when the user asks to check email, read messages, send replies, search their inbox, triage mail, summarize threads, or manage mailboxes.
 metadata:
   author: osaurus
   version: "0.1.0"
 ---
 
-# Osaurus Mail
+# Mail
 
 Read, search, compose, and manage emails in Apple Mail. All operations happen locally via AppleScript — no data leaves the device.
 

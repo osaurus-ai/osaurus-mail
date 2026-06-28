@@ -8,24 +8,73 @@ struct ErrorsTests {
 
   // MARK: - MailPluginError.json
 
-  @Test("error JSON has correct structure")
+  @Test("error JSON emits the canonical host envelope")
   func errorJsonStructure() {
     let json = MailPluginError.mailNotRunning.json(message: "Mail is not open")
     let data = json.data(using: .utf8)!
-    let obj = try! JSONSerialization.jsonObject(with: data) as! [String: String]
+    let obj = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-    #expect(obj["error"] == "mail_not_running")
-    #expect(obj["message"] == "Mail is not open")
+    // The host classifies a result as a failure only when ok==false with a valid kind.
+    #expect(obj["ok"] as? Bool == false)
+    #expect(obj["kind"] as? String == "unavailable")
+    #expect(obj["retryable"] as? Bool == false)
+    #expect(obj["code"] as? String == "mail_not_running")
+    #expect(obj["message"] as? String == "Mail is not open")
   }
 
   @Test("error JSON escapes special characters in message")
   func errorJsonEscapesMessage() {
     let json = MailPluginError.messageNotFound.json(message: "Can't find \"<abc@x>\"")
     let data = json.data(using: .utf8)!
-    let obj = try! JSONSerialization.jsonObject(with: data) as! [String: String]
+    let obj = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-    #expect(obj["error"] == "message_not_found")
-    #expect(obj["message"] == "Can't find \"<abc@x>\"")
+    #expect(obj["ok"] as? Bool == false)
+    #expect(obj["kind"] as? String == "not_found")
+    #expect(obj["retryable"] as? Bool == false)
+    #expect(obj["code"] as? String == "message_not_found")
+    #expect(obj["message"] as? String == "Can't find \"<abc@x>\"")
+  }
+
+  @Test("every error code maps to a valid kind and includes ok/retryable")
+  func errorEnvelopeIsCanonical() {
+    let validKinds: Set<String> = ["invalid_args", "execution_error", "not_found", "unavailable"]
+    let allCases: [MailPluginError] = [
+      .mailNotRunning, .permissionDenied, .mailboxNotFound, .messageNotFound,
+      .invalidDestination, .sendFailed, .missingBody, .invalidParameter,
+    ]
+
+    for err in allCases {
+      let json = err.json(message: "boom")
+      let data = json.data(using: .utf8)!
+      let obj = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+      #expect(obj["ok"] as? Bool == false, "\(err.rawValue) must have ok == false")
+      let kind = obj["kind"] as? String
+      #expect(kind != nil && validKinds.contains(kind!), "\(err.rawValue) has invalid kind")
+      #expect(obj["retryable"] as? Bool != nil, "\(err.rawValue) must include retryable")
+      #expect(obj["code"] as? String == err.rawValue)
+    }
+  }
+
+  @Test("error kinds map per the host contract")
+  func errorKindMapping() {
+    #expect(MailPluginError.mailNotRunning.kind == "unavailable")
+    #expect(MailPluginError.permissionDenied.kind == "unavailable")
+    #expect(MailPluginError.mailboxNotFound.kind == "not_found")
+    #expect(MailPluginError.messageNotFound.kind == "not_found")
+    #expect(MailPluginError.invalidDestination.kind == "invalid_args")
+    #expect(MailPluginError.missingBody.kind == "invalid_args")
+    #expect(MailPluginError.invalidParameter.kind == "invalid_args")
+    #expect(MailPluginError.sendFailed.kind == "execution_error")
+
+    #expect(MailPluginError.mailNotRunning.retryable == false)
+    #expect(MailPluginError.permissionDenied.retryable == false)
+    #expect(MailPluginError.mailboxNotFound.retryable == false)
+    #expect(MailPluginError.messageNotFound.retryable == false)
+    #expect(MailPluginError.invalidDestination.retryable == true)
+    #expect(MailPluginError.missingBody.retryable == true)
+    #expect(MailPluginError.invalidParameter.retryable == true)
+    #expect(MailPluginError.sendFailed.retryable == true)
   }
 
   @Test("all error codes have correct raw values")

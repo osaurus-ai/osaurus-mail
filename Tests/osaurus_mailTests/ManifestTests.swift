@@ -68,6 +68,29 @@ struct ManifestTests {
     #expect(manifest["version"] as? String == "0.1.0")
   }
 
+  @Test("manifest display name is Mail")
+  func displayName() throws {
+    let manifest = try loadManifest()
+    #expect(manifest["name"] as? String == "Mail")
+  }
+
+  @Test("every tool declares an id and a description")
+  func everyToolHasIdAndDescription() throws {
+    let manifest = try loadManifest()
+    let capabilities = manifest["capabilities"] as? [String: Any]
+    let tools = capabilities?["tools"] as? [[String: Any]] ?? []
+
+    #expect(!tools.isEmpty, "manifest should declare at least one tool")
+    for tool in tools {
+      let id = tool["id"] as? String
+      #expect(id != nil && !(id!).isEmpty, "every tool must have a non-empty id")
+      let description = tool["description"] as? String
+      #expect(
+        description != nil && !(description!).isEmpty,
+        "tool '\(id ?? "unknown")' must have a non-empty description")
+    }
+  }
+
   @Test("manifest declares all 9 tools")
   func toolCount() throws {
     let manifest = try loadManifest()

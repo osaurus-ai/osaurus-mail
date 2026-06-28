@@ -1,4 +1,4 @@
-# Osaurus Mail
+# Mail
 
 An Osaurus plugin that gives agents the ability to read, search, compose, and manage emails in Apple Mail via AppleScript. Combined with Osaurus's local models, agents can summarize threads, draft replies, triage inboxes, and more — all on-device.
 
