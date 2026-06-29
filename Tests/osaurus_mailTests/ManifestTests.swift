@@ -50,6 +50,51 @@ struct ManifestTests {
     return obj
   }
 
+  /// Call the public entry point's `invoke` function pointer and parse the JSON result.
+  private func invoke(type: String, id: String, payload: String) throws -> [String: Any] {
+    guard let apiPtr = osaurus_plugin_entry() else {
+      throw ManifestError.entryPointFailed
+    }
+    let fnPtrSize = MemoryLayout<UnsafeRawPointer?>.stride
+
+    let initPtr = apiPtr.load(
+      fromByteOffset: fnPtrSize * 1, as: (@convention(c) () -> UnsafeMutableRawPointer?).self)
+    let ctx = initPtr()
+
+    // invoke is at offset 4: (ctx, type, id, payload) -> char*
+    let invokePtr = apiPtr.load(
+      fromByteOffset: fnPtrSize * 4,
+      as: (@convention(c) (
+        UnsafeMutableRawPointer?, UnsafePointer<CChar>?, UnsafePointer<CChar>?,
+        UnsafePointer<CChar>?
+      ) -> UnsafePointer<CChar>?).self)
+
+    let result = type.withCString { t in
+      id.withCString { i in
+        payload.withCString { p in invokePtr(ctx, t, i, p) }
+      }
+    }
+    guard let cStr = result else {
+      throw ManifestError.nilManifest
+    }
+    let jsonStr = String(cString: cStr)
+
+    let freeStringPtr = apiPtr.load(
+      fromByteOffset: fnPtrSize * 0, as: (@convention(c) (UnsafePointer<CChar>?) -> Void).self)
+    freeStringPtr(cStr)
+
+    let destroyPtr = apiPtr.load(
+      fromByteOffset: fnPtrSize * 2, as: (@convention(c) (UnsafeMutableRawPointer?) -> Void).self)
+    destroyPtr(ctx)
+
+    guard let data = jsonStr.data(using: .utf8),
+      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else {
+      throw ManifestError.invalidJSON
+    }
+    return obj
+  }
+
   enum ManifestError: Error {
     case entryPointFailed
     case nilManifest
@@ -66,6 +111,53 @@ struct ManifestTests {
   func version() throws {
     let manifest = try loadManifest()
     #expect(manifest["version"] as? String == "0.1.0")
+  }
+
+  @Test("manifest display name is Mail")
+  func displayName() throws {
+    let manifest = try loadManifest()
+    #expect(manifest["name"] as? String == "Mail")
+  }
+
+  @Test("every tool declares an id and a description")
+  func everyToolHasIdAndDescription() throws {
+    let manifest = try loadManifest()
+    let capabilities = manifest["capabilities"] as? [String: Any]
+    let tools = capabilities?["tools"] as? [[String: Any]] ?? []
+
+    #expect(!tools.isEmpty, "manifest should declare at least one tool")
+    for tool in tools {
+      let id = tool["id"] as? String
+      #expect(id != nil && !(id!).isEmpty, "every tool must have a non-empty id")
+      let description = tool["description"] as? String
+      #expect(
+        description != nil && !(description!).isEmpty,
+        "tool '\(id ?? "unknown")' must have a non-empty description")
+    }
+  }
+
+  @Test("unknown capability type returns a canonical failure envelope")
+  func unknownCapabilityFallback() throws {
+    let validKinds: Set<String> = ["invalid_args", "execution_error", "not_found", "unavailable"]
+    let obj = try invoke(type: "resource", id: "whatever", payload: "{}")
+
+    #expect(obj["ok"] as? Bool == false)
+    let kind = obj["kind"] as? String
+    #expect(kind != nil && validKinds.contains(kind!))
+    #expect(kind == "invalid_args")
+    #expect(obj["retryable"] as? Bool == true)
+  }
+
+  @Test("unknown tool returns a canonical failure envelope")
+  func unknownToolFallback() throws {
+    let validKinds: Set<String> = ["invalid_args", "execution_error", "not_found", "unavailable"]
+    let obj = try invoke(type: "tool", id: "does_not_exist", payload: "{}")
+
+    #expect(obj["ok"] as? Bool == false)
+    let kind = obj["kind"] as? String
+    #expect(kind != nil && validKinds.contains(kind!))
+    #expect(kind == "not_found")
+    #expect(obj["retryable"] as? Bool == false)
   }
 
   @Test("manifest declares all 9 tools")

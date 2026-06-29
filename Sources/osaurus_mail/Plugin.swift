@@ -73,7 +73,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
     let manifest = """
       {
         "plugin_id": "osaurus.mail",
-        "name": "Osaurus Mail",
+        "name": "Mail",
         "version": "0.1.0",
         "description": "Read, search, compose, and manage Apple Mail — locally and privately",
         "license": "MIT",
@@ -247,7 +247,9 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
 
     guard type == "tool" else {
       return makeCString(
-        "{\"error\":\"unknown_capability\",\"message\":\"Unknown capability type: \(type)\"}")
+        canonicalErrorEnvelope(
+          kind: "invalid_args", message: "Unknown capability type: \(type)", retryable: true,
+          code: "unknown_capability"))
     }
 
     let result: String
@@ -271,7 +273,8 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
     case ctx.getThread.name:
       result = ctx.getThread.run(args: payload, cache: ctx.cache)
     default:
-      result = "{\"error\":\"unknown_tool\",\"message\":\"Unknown tool: \(id)\"}"
+      result = canonicalErrorEnvelope(
+        kind: "not_found", message: "Unknown tool: \(id)", retryable: false, code: "unknown_tool")
     }
 
     return makeCString(result)
