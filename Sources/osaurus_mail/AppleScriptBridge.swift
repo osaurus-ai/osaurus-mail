@@ -13,44 +13,34 @@ private let appleScriptTimeoutSeconds: TimeInterval = 25
 
 /// Execute an AppleScript source string and return the result.
 ///
-/// Uses `Process` with `/usr/bin/osascript` for execution.
-/// Kills the process and returns an error if it does not finish within
-/// `appleScriptTimeoutSeconds`, preventing Mail.app from freezing the caller.
-/// Maps common Apple Mail errors to `MailPluginError` codes.
+/// Uses the shared subprocess runner with `/usr/bin/osascript`: stdout/stderr
+/// are drained concurrently (large output cannot deadlock), the process is
+/// killed if it does not finish within `appleScriptTimeoutSeconds`, and
+/// captured output is capped. Maps common Apple Mail errors to
+/// `MailPluginError` codes.
 func runAppleScript(_ source: String) -> AppleScriptResult {
-  let process = Process()
-  process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-  process.arguments = ["-e", source]
-
-  let stdoutPipe = Pipe()
-  let stderrPipe = Pipe()
-  process.standardOutput = stdoutPipe
-  process.standardError = stderrPipe
-
+  let result: SubprocessResult
   do {
-    try process.run()
+    result = try runSubprocess(
+      executable: "/usr/bin/osascript", arguments: ["-e", source],
+      timeout: appleScriptTimeoutSeconds)
+  } catch SubprocessError.launchFailed(let message) {
+    return .error(.mailNotRunning, "Failed to execute AppleScript: \(message)")
   } catch {
     return .error(.mailNotRunning, "Failed to execute AppleScript: \(error.localizedDescription)")
   }
 
-  // kill the process if Mail doesn't respond in time
-  let killItem = DispatchWorkItem {
-    if process.isRunning { process.terminate() }
+  if result.timedOut {
+    return .error(
+      .timeout,
+      "AppleScript did not finish within \(Int(appleScriptTimeoutSeconds)) seconds and was terminated. Mail may be busy — try again."
+    )
   }
-  DispatchQueue.global().asyncAfter(
-    deadline: .now() + appleScriptTimeoutSeconds, execute: killItem)
 
-  process.waitUntilExit()
-  killItem.cancel()
+  let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+  let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
 
-  let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-  let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-  let stdout =
-    String(data: stdoutData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-  let stderr =
-    String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-  if process.terminationStatus != 0 {
+  if result.terminationStatus != 0 {
     return mapAppleScriptError(stderr)
   }
 
@@ -72,7 +62,7 @@ private func mapAppleScriptError(_ stderr: String) -> AppleScriptResult {
     || lower.contains("apple event timed out")
   {
     return .error(
-      .invalidParameter,
+      .timeout,
       "Mail did not respond in time (Apple Event timed out). Mail may be busy — wait a moment and try again."
     )
   }

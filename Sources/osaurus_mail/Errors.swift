@@ -12,6 +12,7 @@ enum MailPluginError: String {
   case sendFailed = "send_failed"
   case missingBody = "missing_body"
   case invalidParameter = "invalid_parameter"
+  case timeout = "timeout"
 
   /// The canonical Osaurus host error kind for this code.
   ///
@@ -29,15 +30,18 @@ enum MailPluginError: String {
       return "invalid_args"
     case .sendFailed:
       return "execution_error"
+    case .timeout:
+      return "timeout"
     }
   }
 
   /// Whether the host should treat this error as retryable.
   var retryable: Bool {
     switch self {
-    case .mailNotRunning, .permissionDenied, .mailboxNotFound, .messageNotFound:
+    case .mailNotRunning, .permissionDenied, .mailboxNotFound, .messageNotFound,
+      .invalidDestination, .missingBody, .invalidParameter:
       return false
-    case .invalidDestination, .missingBody, .invalidParameter, .sendFailed:
+    case .sendFailed, .timeout:
       return true
     }
   }

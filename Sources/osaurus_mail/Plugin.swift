@@ -248,7 +248,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
     guard type == "tool" else {
       return makeCString(
         canonicalErrorEnvelope(
-          kind: "invalid_args", message: "Unknown capability type: \(type)", retryable: true,
+          kind: "invalid_args", message: "Unknown capability type: \(type)", retryable: false,
           code: "unknown_capability"))
     }
 

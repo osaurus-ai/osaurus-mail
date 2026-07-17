@@ -145,7 +145,7 @@ struct ManifestTests {
     let kind = obj["kind"] as? String
     #expect(kind != nil && validKinds.contains(kind!))
     #expect(kind == "invalid_args")
-    #expect(obj["retryable"] as? Bool == true)
+    #expect(obj["retryable"] as? Bool == false)
   }
 
   @Test("unknown tool returns a canonical failure envelope")
