@@ -92,6 +92,48 @@ func resolveAccountScript(forKey key: String) -> String {
     """
 }
 
+/// AppleScript that checks whether `key` resolves to a Mail account (by email
+/// address or display name). Returns "OK" when it does, or
+/// "NOTFOUND<tab><available accounts>" when it does not, so the caller can fail
+/// closed instead of silently sending from Mail's default account.
+func buildAccountPreflightScript(forKey key: String) -> String {
+  let escaped = escapeAppleScriptString(key)
+  return """
+    tell application "Mail"
+        set acctKey to "\(escaped)"
+        set found to false
+        set acctList to ""
+        repeat with a in accounts
+            set aName to name of a
+            set aEmail to ""
+            try
+                set es to email addresses of a
+                if (count of es) > 0 then set aEmail to item 1 of es
+            end try
+            if acctList is not "" then set acctList to acctList & ", "
+            set acctList to acctList & aName
+            if aEmail is not "" then set acctList to acctList & " <" & aEmail & ">"
+            if (aName is acctKey) then set found to true
+            try
+                if (email addresses of a contains acctKey) then set found to true
+            end try
+        end repeat
+        if found then return "OK"
+        return "NOTFOUND" & tab & acctList
+    end tell
+    """
+}
+
+/// Parse the output of `buildAccountPreflightScript`. Returns `nil` when the
+/// account resolved, or the available-accounts listing (possibly empty) when
+/// it did not.
+func parseAccountPreflight(_ output: String) -> String? {
+  let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+  guard trimmed.hasPrefix("NOTFOUND") else { return nil }
+  let parts = trimmed.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+  return parts.count >= 2 ? String(parts[1]) : ""
+}
+
 /// Escape a string for use inside AppleScript double-quoted strings.
 func escapeAppleScriptString(_ s: String) -> String {
   var result = ""

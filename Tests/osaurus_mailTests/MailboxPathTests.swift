@@ -2,6 +2,35 @@ import Testing
 
 @testable import osaurus_mail
 
+@Suite("Account Preflight")
+struct AccountPreflightTests {
+
+  @Test("preflight script escapes the account key")
+  func scriptEscapesKey() {
+    let script = buildAccountPreflightScript(forKey: "evil\"key")
+    #expect(script.contains("evil\\\"key"))
+    #expect(script.contains("NOTFOUND"))
+  }
+
+  @Test("OK output means the account resolved")
+  func okOutput() {
+    #expect(parseAccountPreflight("OK") == nil)
+    #expect(parseAccountPreflight("  OK\n") == nil)
+  }
+
+  @Test("NOTFOUND output carries the available account listing")
+  func notFoundOutput() {
+    let available = parseAccountPreflight(
+      "NOTFOUND\tGoogle <you@gmail.com>, iCloud <you@icloud.com>")
+    #expect(available == "Google <you@gmail.com>, iCloud <you@icloud.com>")
+  }
+
+  @Test("NOTFOUND with no accounts yields an empty listing")
+  func notFoundEmpty() {
+    #expect(parseAccountPreflight("NOTFOUND") == "")
+  }
+}
+
 @Suite("MailboxPath")
 struct MailboxPathTests {
 
