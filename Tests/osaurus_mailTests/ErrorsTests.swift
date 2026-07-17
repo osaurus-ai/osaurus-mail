@@ -1,4 +1,5 @@
 import Foundation
+import OsaurusPluginKit
 import Testing
 
 @testable import osaurus_mail
@@ -95,31 +96,31 @@ struct ErrorsTests {
     #expect(MailPluginError.timeout.rawValue == "timeout")
   }
 
-  // MARK: - jsonEscapeString
+  // MARK: - Envelope.escape (SDK; replaced the local jsonEscapeString)
 
   @Test("escapes quotes")
   func escapeQuotes() {
-    #expect(jsonEscapeString("say \"hello\"") == "say \\\"hello\\\"")
+    #expect(Envelope.escape("say \"hello\"") == "say \\\"hello\\\"")
   }
 
   @Test("escapes backslashes")
   func escapeBackslashes() {
-    #expect(jsonEscapeString("a\\b") == "a\\\\b")
+    #expect(Envelope.escape("a\\b") == "a\\\\b")
   }
 
   @Test("escapes newlines and tabs")
   func escapeWhitespace() {
-    #expect(jsonEscapeString("line1\nline2\ttab") == "line1\\nline2\\ttab")
+    #expect(Envelope.escape("line1\nline2\ttab") == "line1\\nline2\\ttab")
   }
 
   @Test("escapes carriage returns")
   func escapeCarriageReturn() {
-    #expect(jsonEscapeString("hello\rworld") == "hello\\rworld")
+    #expect(Envelope.escape("hello\rworld") == "hello\\rworld")
   }
 
   @Test("leaves normal text unchanged")
   func normalText() {
-    #expect(jsonEscapeString("hello world 123") == "hello world 123")
+    #expect(Envelope.escape("hello world 123") == "hello world 123")
   }
 
   // MARK: - jsonEncode

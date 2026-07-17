@@ -1,4 +1,5 @@
 import Foundation
+import OsaurusPluginKit
 
 // MARK: - AppleScript Execution
 
@@ -13,18 +14,18 @@ private let appleScriptTimeoutSeconds: TimeInterval = 25
 
 /// Execute an AppleScript source string and return the result.
 ///
-/// Uses the shared subprocess runner with `/usr/bin/osascript`: stdout/stderr
+/// Uses the SDK's `ProcessRunner` with `/usr/bin/osascript`: stdout/stderr
 /// are drained concurrently (large output cannot deadlock), the process is
 /// killed if it does not finish within `appleScriptTimeoutSeconds`, and
 /// captured output is capped. Maps common Apple Mail errors to
 /// `MailPluginError` codes.
 func runAppleScript(_ source: String) -> AppleScriptResult {
-  let result: SubprocessResult
+  let result: ProcessRunner.Output
   do {
-    result = try runSubprocess(
+    result = try ProcessRunner.run(
       executable: "/usr/bin/osascript", arguments: ["-e", source],
       timeout: appleScriptTimeoutSeconds)
-  } catch SubprocessError.launchFailed(let message) {
+  } catch ProcessRunnerError.launchFailed(let message) {
     return .error(.mailNotRunning, "Failed to execute AppleScript: \(message)")
   } catch {
     return .error(.mailNotRunning, "Failed to execute AppleScript: \(error.localizedDescription)")
@@ -37,10 +38,10 @@ func runAppleScript(_ source: String) -> AppleScriptResult {
     )
   }
 
-  let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-  let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+  let stdout = result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+  let stderr = result.stderrText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-  if result.terminationStatus != 0 {
+  if result.exitStatus != 0 {
     return mapAppleScriptError(stderr)
   }
 

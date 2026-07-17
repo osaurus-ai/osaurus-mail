@@ -1,4 +1,5 @@
 import Foundation
+import OsaurusPluginKit
 import Testing
 
 @testable import osaurus_mail
@@ -50,13 +51,13 @@ struct FieldCodingTests {
       return my encodeField(s)
       \(appleScriptFieldEncoderHandlers)
       """
-    let result = try runSubprocess(
+    let result = try ProcessRunner.run(
       executable: "/usr/bin/osascript", arguments: ["-e", script], timeout: 20)
-    #expect(result.terminationStatus == 0, "osascript failed: \(result.stderr)")
+    #expect(result.exitStatus == 0, "osascript failed: \(result.stderrText)")
 
     let expectedInput = "evil\tsubject|||x\nb\\c:d\rend"
     let expected = encodeAppleScriptField(expectedInput)
-    #expect(result.stdout.trimmingCharacters(in: .newlines) == expected)
+    #expect(result.stdoutText.trimmingCharacters(in: .newlines) == expected)
     #expect(decodeAppleScriptField(expected) == expectedInput)
   }
 

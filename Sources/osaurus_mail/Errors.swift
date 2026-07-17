@@ -1,4 +1,5 @@
 import Foundation
+import OsaurusPluginKit
 
 // MARK: - Plugin Error Codes
 
@@ -62,41 +63,24 @@ enum MailPluginError: String {
 /// Use this for failure paths that don't map to a `MailPluginError` case (e.g. the
 /// plugin entry point's unknown-capability / unknown-tool fallbacks) so they emit the
 /// same shape and are not silently auto-wrapped as a success by the host.
+///
+/// Kept local (not the SDK's `Envelope.failure`) because this plugin's wire
+/// shape carries the extra top-level `code` field and the `unavailable` kind,
+/// neither of which the SDK's canonical failure builder can express. String
+/// escaping is delegated to the SDK's `Envelope.escape`.
 func canonicalErrorEnvelope(
   kind: String, message: String, retryable: Bool, code: String? = nil
 ) -> String {
-  let escapedMessage = jsonEscapeString(message)
+  let escapedMessage = Envelope.escape(message)
   var json = "{\"ok\":false,\"kind\":\"\(kind)\",\"message\":\"\(escapedMessage)\",\"retryable\":\(retryable)"
   if let code = code {
-    json += ",\"code\":\"\(jsonEscapeString(code))\""
+    json += ",\"code\":\"\(Envelope.escape(code))\""
   }
   json += "}"
   return json
 }
 
 // MARK: - JSON Helpers
-
-/// Escape a string for safe embedding in a JSON string value.
-func jsonEscapeString(_ s: String) -> String {
-  var result = ""
-  result.reserveCapacity(s.count)
-  for ch in s {
-    switch ch {
-    case "\"": result += "\\\""
-    case "\\": result += "\\\\"
-    case "\n": result += "\\n"
-    case "\r": result += "\\r"
-    case "\t": result += "\\t"
-    default:
-      if let ascii = ch.asciiValue, ascii < 0x20 {
-        result += String(format: "\\u%04x", ascii)
-      } else {
-        result.append(ch)
-      }
-    }
-  }
-  return result
-}
 
 /// Encode a value as a JSON string using JSONSerialization.
 func jsonEncode(_ value: Any) -> String {

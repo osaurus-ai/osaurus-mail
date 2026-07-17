@@ -1,4 +1,5 @@
 import Foundation
+import OsaurusPluginKit
 import Testing
 
 @testable import osaurus_mail
@@ -8,19 +9,19 @@ struct SubprocessRunnerTests {
 
   @Test("captures stdout and exit status")
   func capturesStdout() throws {
-    let result = try runSubprocess(
+    let result = try ProcessRunner.run(
       executable: "/bin/sh", arguments: ["-c", "printf hello"], timeout: 10)
-    #expect(result.terminationStatus == 0)
-    #expect(result.stdout == "hello")
+    #expect(result.exitStatus == 0)
+    #expect(result.stdoutText == "hello")
     #expect(result.timedOut == false)
   }
 
   @Test("captures stderr and nonzero exit status")
   func capturesStderr() throws {
-    let result = try runSubprocess(
+    let result = try ProcessRunner.run(
       executable: "/bin/sh", arguments: ["-c", "printf oops 1>&2; exit 3"], timeout: 10)
-    #expect(result.terminationStatus == 3)
-    #expect(result.stderr == "oops")
+    #expect(result.exitStatus == 3)
+    #expect(result.stderrText == "oops")
     #expect(result.timedOut == false)
   }
 
@@ -28,19 +29,19 @@ struct SubprocessRunnerTests {
   func largeOutputNoDeadlock() throws {
     // 4 MB of output — far beyond the ~64 KB kernel pipe buffer. The old
     // wait-then-read implementation deadlocks here.
-    let result = try runSubprocess(
+    let result = try ProcessRunner.run(
       executable: "/bin/sh",
       arguments: ["-c", "dd if=/dev/zero bs=1024 count=4096 2>/dev/null | tr '\\0' 'x'"],
       timeout: 20)
-    #expect(result.terminationStatus == 0)
-    #expect(result.stdout.count == 4 * 1024 * 1024)
+    #expect(result.exitStatus == 0)
+    #expect(result.stdoutText.count == 4 * 1024 * 1024)
     #expect(result.timedOut == false)
   }
 
   @Test("hung process is killed and reported as timed out")
   func timeoutKillsProcess() throws {
     let start = Date()
-    let result = try runSubprocess(
+    let result = try ProcessRunner.run(
       executable: "/bin/sh", arguments: ["-c", "sleep 60"], timeout: 1)
     #expect(result.timedOut == true)
     #expect(Date().timeIntervalSince(start) < 30)
@@ -48,18 +49,18 @@ struct SubprocessRunnerTests {
 
   @Test("captured output is capped")
   func outputCap() throws {
-    let result = try runSubprocess(
+    let result = try ProcessRunner.run(
       executable: "/bin/sh",
       arguments: ["-c", "dd if=/dev/zero bs=1024 count=64 2>/dev/null | tr '\\0' 'x'"],
-      timeout: 20, outputCap: 1024)
-    #expect(result.terminationStatus == 0)
-    #expect(result.stdout.count == 1024)
+      timeout: 20, maxOutputBytes: 1024)
+    #expect(result.exitStatus == 0)
+    #expect(result.stdoutText.count == 1024)
   }
 
   @Test("missing executable throws launchFailed")
   func launchFailure() {
-    #expect(throws: SubprocessError.self) {
-      _ = try runSubprocess(
+    #expect(throws: ProcessRunnerError.self) {
+      _ = try ProcessRunner.run(
         executable: "/nonexistent/binary", arguments: [], timeout: 5)
     }
   }
