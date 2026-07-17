@@ -74,7 +74,7 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
       {
         "plugin_id": "osaurus.mail",
         "name": "Mail",
-        "version": "0.1.0",
+        "version": "1.0.6",
         "description": "Read, search, compose, and manage Apple Mail — locally and privately",
         "license": "MIT",
         "authors": [],
