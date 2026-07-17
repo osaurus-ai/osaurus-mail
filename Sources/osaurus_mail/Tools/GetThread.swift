@@ -30,8 +30,9 @@ struct GetThreadTool {
           \(resolveScript)
           set subj to subject of m
           set acctName to name of account of mailbox of m
-          return subj & "\\t" & acctName
+          return my encodeField(subj) & "\\t" & my encodeField(acctName)
       end tell
+      \(appleScriptFieldEncoderHandlers)
       """
 
     var seedSubject = ""
@@ -42,10 +43,11 @@ struct GetThreadTool {
       let parts = output.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false).map(
         String.init)
       if parts.count >= 2 {
-        seedSubject = parts[0]
-        accountName = parts[1]
+        seedSubject = decodeAppleScriptField(parts[0])
+        accountName = decodeAppleScriptField(parts[1])
       } else {
-        seedSubject = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        seedSubject = decodeAppleScriptField(
+          output.trimmingCharacters(in: .whitespacesAndNewlines))
       }
     case .error(let code, let message):
       return code.json(message: message)
@@ -83,81 +85,93 @@ struct GetThreadTool {
                       set recipList to ""
                       repeat with r in (every to recipient of m)
                           if recipList is not "" then set recipList to recipList & "|||"
-                          set recipList to recipList & (address of r as text)
+                          set recipList to recipList & my encodeField(address of r as text)
                       end repeat
-                      set output to output & mid & "\\t" & subj & "\\t" & sndr & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & "\\t" & bodyContent & linefeed
+                      set output to output & my encodeField(mid) & "\\t" & my encodeField(subj) & "\\t" & my encodeField(sndr) & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & "\\t" & my encodeField(bodyContent) & linefeed
                   end repeat
               end try
           end repeat
           return output
       end tell
+      \(appleScriptFieldEncoderHandlers)
       """
 
     switch runAppleScript(searchScript) {
     case .success(let output):
-      var threadMessages: [[String: Any]] = []
-      var cacheEntries: [(messageID: String, internalID: Int)] = []
-      let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
-
-      for line in lines {
-        let parts = line.split(separator: "\t", maxSplits: 9, omittingEmptySubsequences: false).map(
-          String.init)
-        guard parts.count >= 10 else { continue }
-
-        let msgSubject = parts[1]
-        // Verify the normalized subject matches
-        guard normalizeSubject(msgSubject) == normalizedSubject else { continue }
-
-        let msgID = parts[0]
-        let internalID = Int(parts[7]) ?? 0
-        let toStr = parts[8]
-        let toList = toStr.isEmpty ? [String]() : toStr.split(separator: "|||").map(String.init)
-
-        var msgDict: [String: Any] = [
-          "message_id": msgID,
-          "subject": msgSubject,
-          "from": parts[2],
-          "to": toList,
-          "date": formatISO8601(parts[3]),
-          "is_read": parts[4] == "true",
-          "is_flagged": parts[5] == "true",
-          "has_attachments": parts[6] == "true",
-        ]
-
-        if includeBodies {
-          var body = parts[9]
-          var bodyTruncated = false
-          if body.count > maxBodyLength {
-            body = String(body.prefix(maxBodyLength))
-            bodyTruncated = true
-          }
-          msgDict["body"] = body
-          msgDict["body_truncated"] = bodyTruncated
-        }
-
-        threadMessages.append(msgDict)
-        cacheEntries.append((messageID: msgID, internalID: internalID))
-      }
-
-      cache.populateFromMessages(cacheEntries)
-
-      // Sort chronologically (oldest first) by date string
-      threadMessages.sort { a, b in
-        let dateA = a["date"] as? String ?? ""
-        let dateB = b["date"] as? String ?? ""
-        return dateA < dateB
-      }
-
-      let response: [String: Any] = [
-        "thread_subject": seedSubject,
-        "message_count": threadMessages.count,
-        "messages": threadMessages,
-      ]
-      return jsonEncode(response)
-
+      return renderThreadJSON(
+        output, seedSubject: seedSubject, normalizedSubject: normalizedSubject,
+        includeBodies: includeBodies, maxBodyLength: maxBodyLength, cache: cache)
     case .error(let code, let message):
       return code.json(message: message)
     }
+  }
+
+  /// Parse the tab-delimited, field-encoded thread search output.
+  func renderThreadJSON(
+    _ output: String, seedSubject: String, normalizedSubject: String,
+    includeBodies: Bool, maxBodyLength: Int, cache: MessageCache
+  ) -> String {
+    var threadMessages: [[String: Any]] = []
+    var cacheEntries: [(messageID: String, internalID: Int)] = []
+    let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
+
+    for line in lines {
+      let parts = line.split(separator: "\t", maxSplits: 9, omittingEmptySubsequences: false).map(
+        String.init)
+      guard parts.count >= 10 else { continue }
+
+      let msgSubject = decodeAppleScriptField(parts[1])
+      // Verify the normalized subject matches
+      guard normalizeSubject(msgSubject) == normalizedSubject else { continue }
+
+      let msgID = decodeAppleScriptField(parts[0])
+      let internalID = Int(parts[7]) ?? 0
+      let toStr = parts[8]
+      let toList =
+        toStr.isEmpty
+        ? [String]() : toStr.split(separator: "|||").map { decodeAppleScriptField(String($0)) }
+
+      var msgDict: [String: Any] = [
+        "message_id": msgID,
+        "subject": msgSubject,
+        "from": decodeAppleScriptField(parts[2]),
+        "to": toList,
+        "date": formatISO8601(parts[3]),
+        "is_read": parts[4] == "true",
+        "is_flagged": parts[5] == "true",
+        "has_attachments": parts[6] == "true",
+      ]
+
+      if includeBodies {
+        var body = decodeAppleScriptField(parts[9])
+        var bodyTruncated = false
+        if body.count > maxBodyLength {
+          body = String(body.prefix(maxBodyLength))
+          bodyTruncated = true
+        }
+        msgDict["body"] = body
+        msgDict["body_truncated"] = bodyTruncated
+      }
+
+      threadMessages.append(msgDict)
+      cacheEntries.append((messageID: msgID, internalID: internalID))
+    }
+
+    cache.populateFromMessages(cacheEntries)
+
+    // Sort chronologically (oldest first) by date string
+    threadMessages.sort { a, b in
+      let dateA = a["date"] as? String ?? ""
+      let dateB = b["date"] as? String ?? ""
+      return dateA < dateB
+    }
+
+    let response: [String: Any] = [
+      "thread_subject": seedSubject,
+      "message_count": threadMessages.count,
+      "messages": threadMessages,
+    ]
+    return jsonEncode(response)
   }
 }
 

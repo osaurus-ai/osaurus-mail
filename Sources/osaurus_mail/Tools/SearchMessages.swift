@@ -108,12 +108,13 @@ struct SearchMessagesTool {
               set recipList to ""
               repeat with r in (every to recipient of m)
                   if recipList is not "" then set recipList to recipList & "|||"
-                  set recipList to recipList & (address of r as text)
+                  set recipList to recipList & my encodeField(address of r as text)
               end repeat
-              set output to output & mid & "\\t" & subj & "\\t" & sndr & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & linefeed
+              set output to output & my encodeField(mid) & "\\t" & my encodeField(subj) & "\\t" & my encodeField(sndr) & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & linefeed
           end repeat
           return output
       end tell
+      \(appleScriptFieldEncoderHandlers)
       """
 
     return parseMessageListOutput(
@@ -150,9 +151,9 @@ struct SearchMessagesTool {
                               set recipList to ""
                               repeat with r in (every to recipient of m)
                                   if recipList is not "" then set recipList to recipList & "|||"
-                                  set recipList to recipList & (address of r as text)
+                                  set recipList to recipList & my encodeField(address of r as text)
                               end repeat
-                              set output to output & mid & "\\t" & subj & "\\t" & sndr & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & linefeed
+                              set output to output & my encodeField(mid) & "\\t" & my encodeField(subj) & "\\t" & my encodeField(sndr) & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & linefeed
                               set collected to collected + 1
                           end if
                       end repeat
@@ -161,6 +162,7 @@ struct SearchMessagesTool {
           end repeat
           return (totalFound as text) & "\\n" & output
       end tell
+      \(appleScriptFieldEncoderHandlers)
       """
 
     switch runAppleScript(script) {
@@ -185,15 +187,17 @@ struct SearchMessagesTool {
         let parts = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
         guard parts.count >= 9 else { continue }
 
-        let messageID = parts[0]
+        let messageID = decodeAppleScriptField(parts[0])
         let internalID = Int(parts[7]) ?? 0
         let toStr = parts[8]
-        let toList = toStr.isEmpty ? [String]() : toStr.split(separator: "|||").map(String.init)
+        let toList =
+          toStr.isEmpty
+          ? [String]() : toStr.split(separator: "|||").map { decodeAppleScriptField(String($0)) }
 
         messages.append([
           "message_id": messageID,
-          "subject": parts[1],
-          "from": parts[2],
+          "subject": decodeAppleScriptField(parts[1]),
+          "from": decodeAppleScriptField(parts[2]),
           "to": toList,
           "date": formatISO8601(parts[3]),
           "is_read": parts[4] == "true",
