@@ -18,6 +18,10 @@ struct GetThreadTool {
       return MailPluginError.invalidParameter.json(message: "Invalid arguments for get_thread.")
     }
 
+    if let maxBodyLength = input.max_body_length, maxBodyLength < 1 {
+      return MailPluginError.invalidParameter.json(
+        message: "max_body_length must be a positive integer (got \(maxBodyLength)).")
+    }
     let messageID = input.message_id
     let includeBodies = input.include_bodies ?? false
     let maxBodyLength = input.max_body_length ?? 5000

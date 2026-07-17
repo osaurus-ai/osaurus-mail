@@ -38,12 +38,19 @@ struct ListMessagesTool {
       whoseClauses.append("read status is false")
     }
     if let since = input.since {
-      let dateStr = escapeAppleScriptString(formatDateForAppleScript(since))
-      whoseClauses.append("date received > date \"\(dateStr)\"")
+      guard let formatted = formatDateForAppleScript(since) else {
+        return MailPluginError.invalidParameter.json(
+          message: "Invalid 'since' date: '\(since)'. Use ISO 8601 (e.g. '2025-02-01T00:00:00Z').")
+      }
+      whoseClauses.append("date received > date \"\(escapeAppleScriptString(formatted))\"")
     }
     if let before = input.before {
-      let dateStr = escapeAppleScriptString(formatDateForAppleScript(before))
-      whoseClauses.append("date received < date \"\(dateStr)\"")
+      guard let formatted = formatDateForAppleScript(before) else {
+        return MailPluginError.invalidParameter.json(
+          message: "Invalid 'before' date: '\(before)'. Use ISO 8601 (e.g. '2025-02-01T00:00:00Z')."
+        )
+      }
+      whoseClauses.append("date received < date \"\(escapeAppleScriptString(formatted))\"")
     }
     if let fromContains = input.from_contains {
       let escaped = escapeAppleScriptString(fromContains)

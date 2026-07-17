@@ -18,6 +18,10 @@ struct ReadMessageTool {
       return MailPluginError.invalidParameter.json(message: "Invalid arguments for read_message.")
     }
 
+    if let maxLength = input.max_length, maxLength < 1 {
+      return MailPluginError.invalidParameter.json(
+        message: "max_length must be a positive integer (got \(maxLength)).")
+    }
     let maxLength = input.max_length ?? 10000
     let includeHeaders = input.include_headers ?? false
     let messageID = input.message_id

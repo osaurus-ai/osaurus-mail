@@ -8,8 +8,8 @@ struct DateFormattingTests {
   // MARK: - formatDateForAppleScript
 
   @Test("converts ISO 8601 to AppleScript date format")
-  func convertISOToAppleScript() {
-    let result = formatDateForAppleScript("2026-02-13T09:30:00Z")
+  func convertISOToAppleScript() throws {
+    let result = try #require(formatDateForAppleScript("2026-02-13T09:30:00Z"))
     // Should produce something like "February 13, 2026 9:30:00 AM"
     #expect(result.contains("2026"))
     #expect(result.contains("February") || result.contains("02"))
@@ -17,15 +17,23 @@ struct DateFormattingTests {
   }
 
   @Test("handles fractional seconds")
-  func fractionalSeconds() {
-    let result = formatDateForAppleScript("2026-02-13T09:30:00.123Z")
+  func fractionalSeconds() throws {
+    let result = try #require(formatDateForAppleScript("2026-02-13T09:30:00.123Z"))
     #expect(result.contains("2026"))
   }
 
-  @Test("returns input unchanged for invalid dates")
+  @Test("accepts bare dates")
+  func bareDate() throws {
+    // Midnight UTC renders in the local timezone, so only assert the year.
+    let result = try #require(formatDateForAppleScript("2026-02-13"))
+    #expect(result.contains("2026"))
+  }
+
+  @Test("returns nil for invalid dates")
   func invalidDate() {
-    let result = formatDateForAppleScript("not-a-date")
-    #expect(result == "not-a-date")
+    #expect(formatDateForAppleScript("not-a-date") == nil)
+    #expect(formatDateForAppleScript("2026-13-45T99:99:99Z") == nil)
+    #expect(formatDateForAppleScript("") == nil)
   }
 
   // MARK: - formatISO8601

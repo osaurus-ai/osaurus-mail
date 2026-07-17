@@ -127,7 +127,9 @@ func buildResolveScript(messageID: String, cache: MessageCache) -> String {
 
 /// Convert an ISO 8601 date string to an AppleScript-friendly date string.
 /// AppleScript expects dates like "February 1, 2026 12:00:00 AM".
-func formatDateForAppleScript(_ iso8601: String) -> String {
+/// Returns `nil` when the input is not a valid ISO 8601 timestamp or date,
+/// so callers can reject it instead of passing garbage into AppleScript.
+func formatDateForAppleScript(_ iso8601: String) -> String? {
   let formatter = ISO8601DateFormatter()
   formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
   if let date = formatter.date(from: iso8601) {
@@ -138,7 +140,15 @@ func formatDateForAppleScript(_ iso8601: String) -> String {
   if let date = formatter.date(from: iso8601) {
     return appleScriptDateString(from: date)
   }
-  return iso8601
+  // Accept a bare date (e.g. "2025-02-01") as midnight UTC
+  let df = DateFormatter()
+  df.dateFormat = "yyyy-MM-dd"
+  df.locale = Locale(identifier: "en_US_POSIX")
+  df.timeZone = TimeZone(identifier: "UTC")
+  if let date = df.date(from: iso8601) {
+    return appleScriptDateString(from: date)
+  }
+  return nil
 }
 
 /// Normalize a date string from AppleScript «class isot» format to standard ISO 8601.
