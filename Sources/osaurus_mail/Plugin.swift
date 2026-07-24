@@ -25,7 +25,7 @@ let mailManifestJSON = """
       {
         "plugin_id": "osaurus.mail",
         "name": "Mail",
-        "version": "1.0.6",
+        "version": "1.1.0",
         "description": "Read, search, compose, and manage Apple Mail — locally and privately",
         "license": "MIT",
         "authors": [],
