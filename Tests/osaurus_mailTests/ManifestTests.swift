@@ -110,7 +110,7 @@ struct ManifestTests {
   @Test("manifest has correct version")
   func version() throws {
     let manifest = try loadManifest()
-    #expect(manifest["version"] as? String == "0.1.0")
+    #expect(manifest["version"] as? String == "1.0.6")
   }
 
   @Test("manifest display name is Mail")
@@ -145,7 +145,7 @@ struct ManifestTests {
     let kind = obj["kind"] as? String
     #expect(kind != nil && validKinds.contains(kind!))
     #expect(kind == "invalid_args")
-    #expect(obj["retryable"] as? Bool == true)
+    #expect(obj["retryable"] as? Bool == false)
   }
 
   @Test("unknown tool returns a canonical failure envelope")

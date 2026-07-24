@@ -1,30 +1,5 @@
 import Foundation
-
-// MARK: - C ABI surface
-
-// Opaque context
-private typealias osr_plugin_ctx_t = UnsafeMutableRawPointer
-
-// Function pointers
-private typealias osr_free_string_t = @convention(c) (UnsafePointer<CChar>?) -> Void
-private typealias osr_init_t = @convention(c) () -> osr_plugin_ctx_t?
-private typealias osr_destroy_t = @convention(c) (osr_plugin_ctx_t?) -> Void
-private typealias osr_get_manifest_t = @convention(c) (osr_plugin_ctx_t?) -> UnsafePointer<CChar>?
-private typealias osr_invoke_t =
-  @convention(c) (
-    osr_plugin_ctx_t?,
-    UnsafePointer<CChar>?,  // type
-    UnsafePointer<CChar>?,  // id
-    UnsafePointer<CChar>?  // payload
-  ) -> UnsafePointer<CChar>?
-
-private struct osr_plugin_api {
-  var free_string: osr_free_string_t?
-  var `init`: osr_init_t?
-  var destroy: osr_destroy_t?
-  var get_manifest: osr_get_manifest_t?
-  var invoke: osr_invoke_t?
-}
+import OsaurusPluginABI
 
 // MARK: - Plugin Context
 
@@ -42,39 +17,15 @@ private class PluginContext {
   let getThread = GetThreadTool()
 }
 
-// MARK: - Helpers
+// MARK: - Manifest
 
-/// Allocate a C string (caller must free via free_string).
-private func makeCString(_ s: String) -> UnsafePointer<CChar>? {
-  guard let dup = strdup(s) else { return nil }
-  return UnsafePointer(dup)
-}
-
-// MARK: - API Implementation
-
-nonisolated(unsafe) private var api: osr_plugin_api = {
-  var api = osr_plugin_api()
-
-  api.free_string = { ptr in
-    if let p = ptr { free(UnsafeMutableRawPointer(mutating: p)) }
-  }
-
-  api.`init` = {
-    let ctx = PluginContext()
-    return Unmanaged.passRetained(ctx).toOpaque()
-  }
-
-  api.destroy = { ctxPtr in
-    guard let ctxPtr = ctxPtr else { return }
-    Unmanaged<PluginContext>.fromOpaque(ctxPtr).release()
-  }
-
-  api.get_manifest = { _ in
-    let manifest = """
+/// The plugin manifest JSON. Kept at file scope so the test suite can run
+/// SDK manifest-conformance checks against it directly.
+let mailManifestJSON = """
       {
         "plugin_id": "osaurus.mail",
         "name": "Mail",
-        "version": "0.1.0",
+        "version": "1.0.6",
         "description": "Read, search, compose, and manage Apple Mail — locally and privately",
         "license": "MIT",
         "authors": [],
@@ -230,10 +181,23 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
         }
       }
       """
-    return makeCString(manifest)
-  }
 
-  api.invoke = { ctxPtr, typePtr, idPtr, payloadPtr in
+// MARK: - API Implementation
+
+nonisolated(unsafe) private var pluginAPI = PluginEntry.makeAPI(
+  version: OsrABIVersion.v2,
+  init: {
+    let ctx = PluginContext()
+    return Unmanaged.passRetained(ctx).toOpaque()
+  },
+  destroy: { ctxPtr in
+    guard let ctxPtr = ctxPtr else { return }
+    Unmanaged<PluginContext>.fromOpaque(ctxPtr).release()
+  },
+  getManifest: { _ in
+    osrMakeCString(mailManifestJSON)
+  },
+  invoke: { ctxPtr, typePtr, idPtr, payloadPtr in
     guard let ctxPtr = ctxPtr,
       let typePtr = typePtr,
       let idPtr = idPtr,
@@ -246,9 +210,9 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
     let payload = String(cString: payloadPtr)
 
     guard type == "tool" else {
-      return makeCString(
+      return osrMakeCString(
         canonicalErrorEnvelope(
-          kind: "invalid_args", message: "Unknown capability type: \(type)", retryable: true,
+          kind: "invalid_args", message: "Unknown capability type: \(type)", retryable: false,
           code: "unknown_capability"))
     }
 
@@ -277,15 +241,22 @@ nonisolated(unsafe) private var api: osr_plugin_api = {
         kind: "not_found", message: "Unknown tool: \(id)", retryable: false, code: "unknown_tool")
     }
 
-    return makeCString(result)
+    return osrMakeCString(result)
   }
+)
 
-  return api
-}()
+// MARK: - Entry Points
 
-// MARK: - Entry Point
+/// ABI v2 entry: the host injects its API table, captured into
+/// `HostBridge.shared`. Newer hosts try this symbol first.
+@_cdecl("osaurus_plugin_entry_v2")
+public func osaurus_plugin_entry_v2(_ host: UnsafeRawPointer?) -> UnsafeRawPointer? {
+  PluginEntry.enterV2(host, api: &pluginAPI)
+}
 
+/// Legacy ABI v1 entry — kept so old hosts (which never pass a host API)
+/// continue to load this plugin.
 @_cdecl("osaurus_plugin_entry")
 public func osaurus_plugin_entry() -> UnsafeRawPointer? {
-  return UnsafeRawPointer(&api)
+  PluginEntry.enterV1(api: &pluginAPI)
 }

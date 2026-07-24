@@ -32,6 +32,47 @@ struct ToolValidationTests {
     #expect(result.contains("invalid_parameter"))
   }
 
+  @Test("read_message rejects non-positive max_length")
+  func readMessageNegativeMaxLength() {
+    let tool = ReadMessageTool()
+    for badLength in [-1, 0, -10000] {
+      let result = tool.run(
+        args: "{\"message_id\": \"<abc@x>\", \"max_length\": \(badLength)}", cache: cache)
+      #expect(result.contains("invalid_parameter"), "max_length \(badLength) must be rejected")
+      #expect(result.contains("invalid_args"))
+    }
+  }
+
+  @Test("get_thread rejects non-positive max_body_length")
+  func getThreadNegativeMaxBodyLength() {
+    let tool = GetThreadTool()
+    let result = tool.run(
+      args: "{\"message_id\": \"<abc@x>\", \"max_body_length\": -5}", cache: cache)
+    #expect(result.contains("invalid_parameter"))
+  }
+
+  @Test("list_messages rejects invalid since/before dates")
+  func listMessagesInvalidDates() {
+    let tool = ListMessagesTool()
+    let sinceResult = tool.run(
+      args: "{\"mailbox_path\": \"a@b.com/INBOX\", \"since\": \"not-a-date\"}", cache: cache)
+    #expect(sinceResult.contains("invalid_parameter"))
+    #expect(sinceResult.contains("since"))
+
+    let beforeResult = tool.run(
+      args: "{\"mailbox_path\": \"a@b.com/INBOX\", \"before\": \"yesterday\"}", cache: cache)
+    #expect(beforeResult.contains("invalid_parameter"))
+    #expect(beforeResult.contains("before"))
+  }
+
+  @Test("search_messages rejects invalid since/before dates")
+  func searchMessagesInvalidDates() {
+    let tool = SearchMessagesTool()
+    let result = tool.run(
+      args: "{\"query\": \"test\", \"since\": \"02/01/2025\"}", cache: cache)
+    #expect(result.contains("invalid_parameter"))
+  }
+
   // MARK: - search_messages
 
   @Test("search_messages rejects invalid JSON")

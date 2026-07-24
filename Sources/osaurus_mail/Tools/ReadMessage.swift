@@ -18,6 +18,10 @@ struct ReadMessageTool {
       return MailPluginError.invalidParameter.json(message: "Invalid arguments for read_message.")
     }
 
+    if let maxLength = input.max_length, maxLength < 1 {
+      return MailPluginError.invalidParameter.json(
+        message: "max_length must be a positive integer (got \(maxLength)).")
+    }
     let maxLength = input.max_length ?? 10000
     let includeHeaders = input.include_headers ?? false
     let messageID = input.message_id
@@ -25,7 +29,7 @@ struct ReadMessageTool {
 
     let headersLine =
       includeHeaders
-      ? "set hdrs to all headers of m"
+      ? "set hdrs to my encodeField(all headers of m)"
       : "set hdrs to \"\""
 
     let script = """
@@ -44,12 +48,12 @@ struct ReadMessageTool {
           set toList to ""
           repeat with r in (every to recipient of m)
               if toList is not "" then set toList to toList & "|||"
-              set toList to toList & (address of r as text)
+              set toList to toList & my encodeField(address of r as text)
           end repeat
           set ccList to ""
           repeat with r in (every cc recipient of m)
               if ccList is not "" then set ccList to ccList & "|||"
-              set ccList to ccList & (address of r as text)
+              set ccList to ccList & my encodeField(address of r as text)
           end repeat
           -- Attachments
           set attList to ""
@@ -61,76 +65,89 @@ struct ReadMessageTool {
               on error
                   set attBytes to 0
               end try
-              set attList to attList & attName & ":::" & attBytes
+              set attList to attList & my encodeField(attName) & ":::" & attBytes
           end repeat
           -- Mailbox path
           set mbox to mailbox of m
           set mboxName to name of mbox
           set acctName to name of account of mbox
           set mboxPath to acctName & "/" & mboxName
-          return mid & "\\t" & subj & "\\t" & sndr & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & bodyContent & "\\t" & hdrs & "\\t" & toList & "\\t" & ccList & "\\t" & attList & "\\t" & mboxPath & "\\t" & iid
+          return my encodeField(mid) & "\\t" & my encodeField(subj) & "\\t" & my encodeField(sndr) & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & my encodeField(bodyContent) & "\\t" & hdrs & "\\t" & toList & "\\t" & ccList & "\\t" & attList & "\\t" & my encodeField(mboxPath) & "\\t" & iid
       end tell
+      \(appleScriptFieldEncoderHandlers)
       """
 
     switch runAppleScript(script) {
     case .success(let output):
-      let parts = output.split(separator: "\t", maxSplits: 12, omittingEmptySubsequences: false)
-        .map(String.init)
-      guard parts.count >= 13 else {
-        return MailPluginError.messageNotFound.json(
-          message: "Message '\(messageID)' not found. It may have been deleted or moved.")
-      }
-
-      let msgID = parts[0]
-      let internalID = Int(parts[12]) ?? 0
-      cache.set(msgID, internalID: internalID)
-
-      // Truncate body
-      var body = parts[6]
-      var bodyTruncated = false
-      if body.count > maxLength {
-        body = String(body.prefix(maxLength))
-        bodyTruncated = true
-      }
-
-      let toList = parts[8].isEmpty ? [String]() : parts[8].split(separator: "|||").map(String.init)
-      let ccList = parts[9].isEmpty ? [String]() : parts[9].split(separator: "|||").map(String.init)
-
-      // Parse attachments
-      var attachments: [[String: Any]] = []
-      if !parts[10].isEmpty {
-        for att in parts[10].split(separator: "|||").map(String.init) {
-          let info = att.split(separator: ":::", maxSplits: 1).map(String.init)
-          attachments.append([
-            "name": info[0],
-            "size_bytes": info.count >= 2 ? (Int(info[1]) ?? 0) : 0,
-          ])
-        }
-      }
-
-      var response: [String: Any] = [
-        "message_id": msgID,
-        "subject": parts[1],
-        "from": parts[2],
-        "to": toList,
-        "cc": ccList,
-        "date": formatISO8601(parts[3]),
-        "body": body,
-        "body_truncated": bodyTruncated,
-        "is_read": parts[4] == "true",
-        "is_flagged": parts[5] == "true",
-        "attachments": attachments,
-        "mailbox_path": parts[11],
-      ]
-
-      if includeHeaders && !parts[7].isEmpty {
-        response["headers"] = parts[7]
-      }
-
-      return jsonEncode(response)
-
+      return parseOutput(
+        output, messageID: messageID, maxLength: maxLength, includeHeaders: includeHeaders,
+        cache: cache)
     case .error(let code, let message):
       return code.json(message: message)
     }
+  }
+
+  /// Parse the tab-delimited, field-encoded read_message script output.
+  func parseOutput(
+    _ output: String, messageID: String, maxLength: Int, includeHeaders: Bool, cache: MessageCache
+  ) -> String {
+    let parts = output.split(separator: "\t", maxSplits: 12, omittingEmptySubsequences: false)
+      .map(String.init)
+    guard parts.count >= 13 else {
+      return MailPluginError.messageNotFound.json(
+        message: "Message '\(messageID)' not found. It may have been deleted or moved.")
+    }
+
+    let msgID = decodeAppleScriptField(parts[0])
+    let internalID = Int(parts[12]) ?? 0
+    cache.set(msgID, internalID: internalID)
+
+    // Truncate body
+    var body = decodeAppleScriptField(parts[6])
+    var bodyTruncated = false
+    if body.count > maxLength {
+      body = String(body.prefix(maxLength))
+      bodyTruncated = true
+    }
+
+    let toList =
+      parts[8].isEmpty
+      ? [String]() : parts[8].split(separator: "|||").map { decodeAppleScriptField(String($0)) }
+    let ccList =
+      parts[9].isEmpty
+      ? [String]() : parts[9].split(separator: "|||").map { decodeAppleScriptField(String($0)) }
+
+    // Parse attachments
+    var attachments: [[String: Any]] = []
+    if !parts[10].isEmpty {
+      for att in parts[10].split(separator: "|||").map(String.init) {
+        let info = att.split(separator: ":::", maxSplits: 1).map(String.init)
+        attachments.append([
+          "name": decodeAppleScriptField(info[0]),
+          "size_bytes": info.count >= 2 ? (Int(info[1]) ?? 0) : 0,
+        ])
+      }
+    }
+
+    var response: [String: Any] = [
+      "message_id": msgID,
+      "subject": decodeAppleScriptField(parts[1]),
+      "from": decodeAppleScriptField(parts[2]),
+      "to": toList,
+      "cc": ccList,
+      "date": formatISO8601(parts[3]),
+      "body": body,
+      "body_truncated": bodyTruncated,
+      "is_read": parts[4] == "true",
+      "is_flagged": parts[5] == "true",
+      "attachments": attachments,
+      "mailbox_path": decodeAppleScriptField(parts[11]),
+    ]
+
+    if includeHeaders && !parts[7].isEmpty {
+      response["headers"] = decodeAppleScriptField(parts[7])
+    }
+
+    return jsonEncode(response)
   }
 }

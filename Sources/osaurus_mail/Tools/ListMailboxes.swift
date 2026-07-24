@@ -32,7 +32,7 @@ struct ListMailboxesTool {
                   on error
                       set mc to 0
                   end try
-                  set output to output & fullPath & "\\t" & uc & "\\t" & mc & "\\t" & acctEmail & linefeed
+                  set output to output & my encodeField(fullPath) & "\\t" & uc & "\\t" & mc & "\\t" & my encodeField(acctEmail) & linefeed
                   -- Second level
                   try
                       set childMailboxes to every mailbox of mbox
@@ -45,7 +45,7 @@ struct ListMailboxesTool {
                           on error
                               set childMC to 0
                           end try
-                          set output to output & childPath & "\\t" & childUC & "\\t" & childMC & "\\t" & acctEmail & linefeed
+                          set output to output & my encodeField(childPath) & "\\t" & childUC & "\\t" & childMC & "\\t" & my encodeField(acctEmail) & linefeed
                           -- Third level
                           try
                               set grandchildren to every mailbox of child
@@ -58,7 +58,7 @@ struct ListMailboxesTool {
                                   on error
                                       set gcMC to 0
                                   end try
-                                  set output to output & gcPath & "\\t" & gcUC & "\\t" & gcMC & "\\t" & acctEmail & linefeed
+                                  set output to output & my encodeField(gcPath) & "\\t" & gcUC & "\\t" & gcMC & "\\t" & my encodeField(acctEmail) & linefeed
                               end repeat
                           end try
                       end repeat
@@ -67,6 +67,7 @@ struct ListMailboxesTool {
           end repeat
           return output
       end tell
+      \(appleScriptFieldEncoderHandlers)
       """
 
     switch runAppleScript(simpleScript) {
@@ -76,11 +77,11 @@ struct ListMailboxesTool {
       for line in lines {
         let parts = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
         if parts.count >= 3 {
-          let mailboxPath = parts[0]
+          let mailboxPath = decodeAppleScriptField(parts[0])
           let unreadCount = Int(parts[1]) ?? 0
           let messageCount = Int(parts[2]) ?? 0
           // 4th column (added later) is the account's email address; tolerate older output
-          let accountEmail = parts.count >= 4 ? parts[3] : ""
+          let accountEmail = parts.count >= 4 ? decodeAppleScriptField(parts[3]) : ""
           mailboxes.append([
             "mailbox_path": mailboxPath,
             "unread_count": unreadCount,

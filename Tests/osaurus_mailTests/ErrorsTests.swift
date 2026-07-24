@@ -1,4 +1,5 @@
 import Foundation
+import OsaurusPluginKit
 import Testing
 
 @testable import osaurus_mail
@@ -37,10 +38,12 @@ struct ErrorsTests {
 
   @Test("every error code maps to a valid kind and includes ok/retryable")
   func errorEnvelopeIsCanonical() {
-    let validKinds: Set<String> = ["invalid_args", "execution_error", "not_found", "unavailable"]
+    let validKinds: Set<String> = [
+      "invalid_args", "execution_error", "not_found", "unavailable", "timeout",
+    ]
     let allCases: [MailPluginError] = [
       .mailNotRunning, .permissionDenied, .mailboxNotFound, .messageNotFound,
-      .invalidDestination, .sendFailed, .missingBody, .invalidParameter,
+      .invalidDestination, .sendFailed, .missingBody, .invalidParameter, .timeout,
     ]
 
     for err in allCases {
@@ -66,15 +69,18 @@ struct ErrorsTests {
     #expect(MailPluginError.missingBody.kind == "invalid_args")
     #expect(MailPluginError.invalidParameter.kind == "invalid_args")
     #expect(MailPluginError.sendFailed.kind == "execution_error")
+    #expect(MailPluginError.timeout.kind == "timeout")
 
     #expect(MailPluginError.mailNotRunning.retryable == false)
     #expect(MailPluginError.permissionDenied.retryable == false)
     #expect(MailPluginError.mailboxNotFound.retryable == false)
     #expect(MailPluginError.messageNotFound.retryable == false)
-    #expect(MailPluginError.invalidDestination.retryable == true)
-    #expect(MailPluginError.missingBody.retryable == true)
-    #expect(MailPluginError.invalidParameter.retryable == true)
+    // invalid_args failures are deterministic — retrying the same arguments cannot succeed
+    #expect(MailPluginError.invalidDestination.retryable == false)
+    #expect(MailPluginError.missingBody.retryable == false)
+    #expect(MailPluginError.invalidParameter.retryable == false)
     #expect(MailPluginError.sendFailed.retryable == true)
+    #expect(MailPluginError.timeout.retryable == true)
   }
 
   @Test("all error codes have correct raw values")
@@ -87,33 +93,34 @@ struct ErrorsTests {
     #expect(MailPluginError.sendFailed.rawValue == "send_failed")
     #expect(MailPluginError.missingBody.rawValue == "missing_body")
     #expect(MailPluginError.invalidParameter.rawValue == "invalid_parameter")
+    #expect(MailPluginError.timeout.rawValue == "timeout")
   }
 
-  // MARK: - jsonEscapeString
+  // MARK: - Envelope.escape (SDK; replaced the local jsonEscapeString)
 
   @Test("escapes quotes")
   func escapeQuotes() {
-    #expect(jsonEscapeString("say \"hello\"") == "say \\\"hello\\\"")
+    #expect(Envelope.escape("say \"hello\"") == "say \\\"hello\\\"")
   }
 
   @Test("escapes backslashes")
   func escapeBackslashes() {
-    #expect(jsonEscapeString("a\\b") == "a\\\\b")
+    #expect(Envelope.escape("a\\b") == "a\\\\b")
   }
 
   @Test("escapes newlines and tabs")
   func escapeWhitespace() {
-    #expect(jsonEscapeString("line1\nline2\ttab") == "line1\\nline2\\ttab")
+    #expect(Envelope.escape("line1\nline2\ttab") == "line1\\nline2\\ttab")
   }
 
   @Test("escapes carriage returns")
   func escapeCarriageReturn() {
-    #expect(jsonEscapeString("hello\rworld") == "hello\\rworld")
+    #expect(Envelope.escape("hello\rworld") == "hello\\rworld")
   }
 
   @Test("leaves normal text unchanged")
   func normalText() {
-    #expect(jsonEscapeString("hello world 123") == "hello world 123")
+    #expect(Envelope.escape("hello world 123") == "hello world 123")
   }
 
   // MARK: - jsonEncode

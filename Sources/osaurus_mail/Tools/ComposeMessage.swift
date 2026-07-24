@@ -63,18 +63,30 @@ struct ComposeMessageTool {
       bodyLine = ""
     }
 
-    // Sender account — accepts an email address or account name; silently keeps Mail's
-    // default sender if the account can't be resolved (wrapped in try)
+    // Sender account — accepts an email address or account name. Fails closed:
+    // if the account can't be resolved, return an error listing the available
+    // accounts instead of silently sending from Mail's default account.
     var senderLine = ""
     if let fromAccount = input.from_account {
+      switch runAppleScript(buildAccountPreflightScript(forKey: fromAccount)) {
+      case .success(let output):
+        if let available = parseAccountPreflight(output) {
+          let hint = available.isEmpty ? "" : " Available accounts: \(available)."
+          return canonicalErrorEnvelope(
+            kind: "not_found",
+            message:
+              "Account '\(fromAccount)' not found.\(hint) Use the account's email address or exact name.",
+            retryable: false, code: "account_not_found")
+        }
+      case .error(let code, let message):
+        return code.json(message: message)
+      }
       senderLine = """
-        try
-            \(resolveAccountScript(forKey: fromAccount))
-            set senderAddr to email addresses of targetAccount
-            if (count of senderAddr) > 0 then
-                set sender of msg to (item 1 of senderAddr as text)
-            end if
-        end try
+        \(resolveAccountScript(forKey: fromAccount))
+        set senderAddr to email addresses of targetAccount
+        if (count of senderAddr) > 0 then
+            set sender of msg to (item 1 of senderAddr as text)
+        end if
         """
     }
 

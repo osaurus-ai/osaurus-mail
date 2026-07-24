@@ -38,12 +38,19 @@ struct ListMessagesTool {
       whoseClauses.append("read status is false")
     }
     if let since = input.since {
-      let dateStr = escapeAppleScriptString(formatDateForAppleScript(since))
-      whoseClauses.append("date received > date \"\(dateStr)\"")
+      guard let formatted = formatDateForAppleScript(since) else {
+        return MailPluginError.invalidParameter.json(
+          message: "Invalid 'since' date: '\(since)'. Use ISO 8601 (e.g. '2025-02-01T00:00:00Z').")
+      }
+      whoseClauses.append("date received > date \"\(escapeAppleScriptString(formatted))\"")
     }
     if let before = input.before {
-      let dateStr = escapeAppleScriptString(formatDateForAppleScript(before))
-      whoseClauses.append("date received < date \"\(dateStr)\"")
+      guard let formatted = formatDateForAppleScript(before) else {
+        return MailPluginError.invalidParameter.json(
+          message: "Invalid 'before' date: '\(before)'. Use ISO 8601 (e.g. '2025-02-01T00:00:00Z')."
+        )
+      }
+      whoseClauses.append("date received < date \"\(escapeAppleScriptString(formatted))\"")
     }
     if let fromContains = input.from_contains {
       let escaped = escapeAppleScriptString(fromContains)
@@ -100,12 +107,13 @@ struct ListMessagesTool {
               set recipList to ""
               repeat with r in (every to recipient of m)
                   if recipList is not "" then set recipList to recipList & "|||"
-                  set recipList to recipList & (address of r as text)
+                  set recipList to recipList & my encodeField(address of r as text)
               end repeat
-              set output to output & mid & "\\t" & subj & "\\t" & sndr & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & linefeed
+              set output to output & my encodeField(mid) & "\\t" & my encodeField(subj) & "\\t" & my encodeField(sndr) & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & linefeed
           end repeat
           return output
       end tell
+      \(appleScriptFieldEncoderHandlers)
       """
 
     return parseMessageListOutput(
@@ -115,51 +123,59 @@ struct ListMessagesTool {
 
 // MARK: - Shared Message List Parsing
 
-/// Parse tab-delimited message list output from AppleScript into a paginated JSON response.
+/// Run a message-list script and parse its output into a paginated JSON response.
 func parseMessageListOutput(
   _ script: String, total: Int, offset: Int, endIdx: Int, cache: MessageCache
 ) -> String {
   switch runAppleScript(script) {
   case .success(let output):
-    var messages: [[String: Any]] = []
-    var cacheEntries: [(messageID: String, internalID: Int)] = []
-    let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
-
-    for line in lines {
-      let parts = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
-      guard parts.count >= 9 else { continue }
-
-      let messageID = parts[0]
-      let internalID = Int(parts[7]) ?? 0
-      let toStr = parts[8]
-      let toList = toStr.isEmpty ? [String]() : toStr.split(separator: "|||").map(String.init)
-
-      messages.append([
-        "message_id": messageID,
-        "subject": parts[1],
-        "from": parts[2],
-        "to": toList,
-        "date": formatISO8601(parts[3]),
-        "is_read": parts[4] == "true",
-        "is_flagged": parts[5] == "true",
-        "has_attachments": parts[6] == "true",
-      ])
-      cacheEntries.append((messageID: messageID, internalID: internalID))
-    }
-
-    cache.populateFromMessages(cacheEntries)
-
-    let hasMore = endIdx < total
-    let nextOffset = hasMore ? endIdx : offset
-
-    return jsonEncode([
-      "messages": messages,
-      "total": total,
-      "has_more": hasMore,
-      "next_offset": nextOffset,
-    ])
-
+    return renderMessageListJSON(output, total: total, offset: offset, endIdx: endIdx, cache: cache)
   case .error(let code, let message):
     return code.json(message: message)
   }
+}
+
+/// Parse tab-delimited, field-encoded message list output into a paginated JSON response.
+func renderMessageListJSON(
+  _ output: String, total: Int, offset: Int, endIdx: Int, cache: MessageCache
+) -> String {
+  var messages: [[String: Any]] = []
+  var cacheEntries: [(messageID: String, internalID: Int)] = []
+  let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
+
+  for line in lines {
+    let parts = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+    guard parts.count >= 9 else { continue }
+
+    let messageID = decodeAppleScriptField(parts[0])
+    let internalID = Int(parts[7]) ?? 0
+    let toStr = parts[8]
+    let toList =
+      toStr.isEmpty
+      ? [String]() : toStr.split(separator: "|||").map { decodeAppleScriptField(String($0)) }
+
+    messages.append([
+      "message_id": messageID,
+      "subject": decodeAppleScriptField(parts[1]),
+      "from": decodeAppleScriptField(parts[2]),
+      "to": toList,
+      "date": formatISO8601(parts[3]),
+      "is_read": parts[4] == "true",
+      "is_flagged": parts[5] == "true",
+      "has_attachments": parts[6] == "true",
+    ])
+    cacheEntries.append((messageID: messageID, internalID: internalID))
+  }
+
+  cache.populateFromMessages(cacheEntries)
+
+  let hasMore = endIdx < total
+  let nextOffset = hasMore ? endIdx : offset
+
+  return jsonEncode([
+    "messages": messages,
+    "total": total,
+    "has_more": hasMore,
+    "next_offset": nextOffset,
+  ])
 }
