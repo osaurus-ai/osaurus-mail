@@ -88,25 +88,27 @@ struct ListMailboxesTool {
 
     switch runAppleScript(simpleScript) {
     case .success(let output):
-      var mailboxes: [[String: Any]] = []
-      let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
-      for line in lines {
-        let parts = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
-        if parts.count >= 3 {
-          let mailboxPath = decodeAppleScriptField(parts[0])
-          let unreadCount = Int(parts[1]) ?? 0
-          let accountEmail = decodeAppleScriptField(parts[2])
-          mailboxes.append([
-            "mailbox_path": mailboxPath,
-            "unread_count": unreadCount,
-            "account_email": accountEmail,
-          ])
-        }
-      }
-      return jsonEncode(["mailboxes": mailboxes])
-
+      return renderMailboxListJSON(output)
     case .error(let code, let message):
       return code.json(message: message)
     }
   }
+}
+
+/// Parse tab-delimited, field-encoded mailbox list output
+/// (`path \t unread \t account_email` per line) into the tool's JSON response.
+func renderMailboxListJSON(_ output: String) -> String {
+  var mailboxes: [[String: Any]] = []
+  let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
+  for line in lines {
+    let parts = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+    if parts.count >= 3 {
+      mailboxes.append([
+        "mailbox_path": decodeAppleScriptField(parts[0]),
+        "unread_count": Int(parts[1]) ?? 0,
+        "account_email": decodeAppleScriptField(parts[2]),
+      ])
+    }
+  }
+  return jsonEncode(["mailboxes": mailboxes])
 }
