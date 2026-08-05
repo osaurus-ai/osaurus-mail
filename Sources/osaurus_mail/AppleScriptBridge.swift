@@ -9,8 +9,12 @@ enum AppleScriptResult {
   case error(MailPluginError, String)
 }
 
-/// how long to wait for an AppleScript before killing the process and returning an error.
-private let appleScriptTimeoutSeconds: TimeInterval = 25
+/// How long to wait for an AppleScript before killing the process and returning
+/// an error. Mail answers each Apple event on its main thread, so accounts with
+/// many mailboxes or messages legitimately need tens of seconds even when the
+/// scripts batch their fetches; the host's own tool-call guard (120s) still
+/// bounds the worst case above this.
+private let appleScriptTimeoutSeconds: TimeInterval = 60
 
 /// Execute an AppleScript source string and return the result.
 ///
@@ -34,7 +38,7 @@ func runAppleScript(_ source: String) -> AppleScriptResult {
   if result.timedOut {
     return .error(
       .timeout,
-      "AppleScript did not finish within \(Int(appleScriptTimeoutSeconds)) seconds and was terminated. Mail may be busy — try again."
+      "AppleScript did not finish within \(Int(appleScriptTimeoutSeconds)) seconds and was terminated. Mail may be busy or the account may be very large. Retry with a smaller scope (a specific mailbox_path, lower limit, or narrower date filters)."
     )
   }
 
