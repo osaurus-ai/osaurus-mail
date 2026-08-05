@@ -76,22 +76,22 @@ struct GetThreadTool {
               try
                   set msgs to (every message of mbox whose subject contains "\(escapedSubject)")
                   repeat with m in msgs
-                      set subj to subject of m
-                      -- Verify normalized subject matches
-                      set mid to message id of m
-                      set sndr to sender of m
-                      set dr to date received of m
-                      set rs to read status of m
-                      set fs to flagged status of m
-                      set iid to id of m
-                      set hasAtt to (count of mail attachments of m) > 0
+                      -- One multi-property get (single Apple event) instead of seven
+                      -- per-message round trips; normalized-subject verification happens
+                      -- host-side in renderThreadJSON.
+                      set props to {message id, subject, sender, date received, read status, flagged status, id} of m
                       \(bodyFetchLine)
+                      set recipAddrs to {}
+                      try
+                          set recipAddrs to address of every to recipient of m
+                      end try
+                      set hasAtt to (count of mail attachments of m) > 0
                       set recipList to ""
-                      repeat with r in (every to recipient of m)
+                      repeat with r in recipAddrs
                           if recipList is not "" then set recipList to recipList & "|||"
-                          set recipList to recipList & my encodeField(address of r as text)
+                          set recipList to recipList & my encodeField(r as text)
                       end repeat
-                      set output to output & my encodeField(mid) & "\\t" & my encodeField(subj) & "\\t" & my encodeField(sndr) & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & "\\t" & my encodeField(bodyContent) & linefeed
+                      set output to output & my encodeField(item 1 of props) & "\\t" & my encodeField(item 2 of props) & "\\t" & my encodeField(item 3 of props) & "\\t" & ((item 4 of props) as «class isot» as string) & "\\t" & (item 5 of props) & "\\t" & (item 6 of props) & "\\t" & hasAtt & "\\t" & (item 7 of props) & "\\t" & recipList & "\\t" & my encodeField(bodyContent) & linefeed
                   end repeat
               end try
           end repeat
