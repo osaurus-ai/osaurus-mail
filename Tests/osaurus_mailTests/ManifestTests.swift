@@ -110,7 +110,7 @@ struct ManifestTests {
   @Test("manifest has correct version")
   func version() throws {
     let manifest = try loadManifest()
-    #expect(manifest["version"] as? String == "1.1.0")
+    #expect(manifest["version"] as? String == "1.2.0")
   }
 
   @Test("manifest display name is Mail")
