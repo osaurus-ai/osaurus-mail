@@ -91,6 +91,33 @@ private func mapAppleScriptError(_ stderr: String) -> AppleScriptResult {
   return .error(.mailNotRunning, "AppleScript error: \(stderr)")
 }
 
+// MARK: - Message Row Emission
+
+/// AppleScript statements that append one tab-delimited, field-encoded row for
+/// the message bound to `m` onto `output`. Shared by list_messages and both
+/// search_messages paths so the row format (and its Apple-event cost) stays in
+/// one place.
+///
+/// The seven scalar properties are fetched with a single multi-property `get`
+/// (one Apple event) instead of seven separate `x of m` statements (seven
+/// events); recipients and the attachment count are one event each. Three
+/// round trips per message instead of ~10 — per-event latency is what blew
+/// the script timeout on slow machines (issue osaurus#2298).
+let appleScriptEmitMessageRow = """
+  set props to {message id, subject, sender, date received, read status, flagged status, id} of m
+  set recipAddrs to {}
+  try
+      set recipAddrs to address of every to recipient of m
+  end try
+  set hasAtt to (count of mail attachments of m) > 0
+  set recipList to ""
+  repeat with r in recipAddrs
+      if recipList is not "" then set recipList to recipList & "|||"
+      set recipList to recipList & my encodeField(r as text)
+  end repeat
+  set output to output & my encodeField(item 1 of props) & "\\t" & my encodeField(item 2 of props) & "\\t" & my encodeField(item 3 of props) & "\\t" & ((item 4 of props) as «class isot» as string) & "\\t" & (item 5 of props) & "\\t" & (item 6 of props) & "\\t" & hasAtt & "\\t" & (item 7 of props) & "\\t" & recipList & linefeed
+  """
+
 // MARK: - Message Resolution
 
 /// Build an AppleScript snippet that resolves a message by its RFC Message-ID.
