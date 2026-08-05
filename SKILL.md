@@ -87,7 +87,7 @@ Returned in every message summary by `list_messages`, `search_messages`, and `ge
 
 - No parameters. Returns all mailboxes across all configured accounts.
 - Call this first in every email session to discover available mailbox paths.
-- Returns `mailbox_path`, `unread_count`, and `message_count` for each mailbox.
+- Returns `mailbox_path`, `unread_count`, and `account_email` for each mailbox.
 
 ### `list_messages`
 

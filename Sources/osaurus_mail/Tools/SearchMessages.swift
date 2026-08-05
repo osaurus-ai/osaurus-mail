@@ -104,20 +104,7 @@ struct SearchMessagesTool {
           set output to ""
           repeat with i from \(startIdx) to \(endIdx)
               set m to item i of msgs
-              set mid to message id of m
-              set subj to subject of m
-              set sndr to sender of m
-              set dr to date received of m
-              set rs to read status of m
-              set fs to flagged status of m
-              set iid to id of m
-              set hasAtt to (count of mail attachments of m) > 0
-              set recipList to ""
-              repeat with r in (every to recipient of m)
-                  if recipList is not "" then set recipList to recipList & "|||"
-                  set recipList to recipList & my encodeField(address of r as text)
-              end repeat
-              set output to output & my encodeField(mid) & "\\t" & my encodeField(subj) & "\\t" & my encodeField(sndr) & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & linefeed
+              \(appleScriptEmitMessageRow)
           end repeat
           return output
       end tell
@@ -147,20 +134,7 @@ struct SearchMessagesTool {
                           if skipped < \(offset) then
                               set skipped to skipped + 1
                           else if collected < \(limit) then
-                              set mid to message id of m
-                              set subj to subject of m
-                              set sndr to sender of m
-                              set dr to date received of m
-                              set rs to read status of m
-                              set fs to flagged status of m
-                              set iid to id of m
-                              set hasAtt to (count of mail attachments of m) > 0
-                              set recipList to ""
-                              repeat with r in (every to recipient of m)
-                                  if recipList is not "" then set recipList to recipList & "|||"
-                                  set recipList to recipList & my encodeField(address of r as text)
-                              end repeat
-                              set output to output & my encodeField(mid) & "\\t" & my encodeField(subj) & "\\t" & my encodeField(sndr) & "\\t" & (dr as «class isot» as string) & "\\t" & rs & "\\t" & fs & "\\t" & hasAtt & "\\t" & iid & "\\t" & recipList & linefeed
+                              \(appleScriptEmitMessageRow)
                               set collected to collected + 1
                           end if
                       end repeat
