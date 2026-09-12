@@ -100,3 +100,42 @@ struct MessageCacheTests {
     #expect(cache.get("<c@x>") == 3)
   }
 }
+
+@Suite("MessageCache mailbox path")
+struct MessageCacheMailboxPathTests {
+
+  @Test("entry carries the mailbox path it was listed in")
+  func entryWithPath() {
+    let cache = MessageCache(capacity: 10)
+    cache.set("<a@x>", internalID: 1, mailboxPath: "me@x/INBOX")
+    #expect(cache.entry(for: "<a@x>") == .init(internalID: 1, mailboxPath: "me@x/INBOX"))
+    #expect(cache.get("<a@x>") == 1)
+  }
+
+  @Test("a later set without a path keeps the known path")
+  func keepsPathOnNilUpdate() {
+    let cache = MessageCache(capacity: 10)
+    cache.set("<a@x>", internalID: 1, mailboxPath: "me@x/INBOX")
+    cache.set("<a@x>", internalID: 2)
+    #expect(cache.entry(for: "<a@x>") == .init(internalID: 2, mailboxPath: "me@x/INBOX"))
+  }
+
+  @Test("a later set with a path replaces it")
+  func replacesPath() {
+    let cache = MessageCache(capacity: 10)
+    cache.set("<a@x>", internalID: 1, mailboxPath: "me@x/INBOX")
+    cache.set("<a@x>", internalID: 1, mailboxPath: "me@x/Archive")
+    #expect(cache.entry(for: "<a@x>")?.mailboxPath == "me@x/Archive")
+  }
+
+  @Test("batch populate records paths")
+  func populateWithPaths() {
+    let cache = MessageCache(capacity: 10)
+    cache.populateFromMessages([
+      (messageID: "<a@x>", internalID: 1, mailboxPath: "me@x/INBOX"),
+      (messageID: "<b@x>", internalID: 2, mailboxPath: nil),
+    ])
+    #expect(cache.entry(for: "<a@x>")?.mailboxPath == "me@x/INBOX")
+    #expect(cache.entry(for: "<b@x>") == .init(internalID: 2, mailboxPath: nil))
+  }
+}

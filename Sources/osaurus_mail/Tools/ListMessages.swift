@@ -37,20 +37,25 @@ struct ListMessagesTool {
     if input.unread_only == true {
       whoseClauses.append("read status is false")
     }
+    // Date bounds are bound to variables (locale-independent) and referenced by name
+    // in the whose clause; the bindings are emitted right after the mailbox resolver.
+    var datePrelude = ""
     if let since = input.since {
-      guard let formatted = formatDateForAppleScript(since) else {
+      guard let binding = appleScriptDateBinding("sinceDate", iso8601: since) else {
         return MailPluginError.invalidParameter.json(
           message: "Invalid 'since' date: '\(since)'. Use ISO 8601 (e.g. '2025-02-01T00:00:00Z').")
       }
-      whoseClauses.append("date received > date \"\(escapeAppleScriptString(formatted))\"")
+      datePrelude += binding
+      whoseClauses.append("date received > sinceDate")
     }
     if let before = input.before {
-      guard let formatted = formatDateForAppleScript(before) else {
+      guard let binding = appleScriptDateBinding("beforeDate", iso8601: before) else {
         return MailPluginError.invalidParameter.json(
           message: "Invalid 'before' date: '\(before)'. Use ISO 8601 (e.g. '2025-02-01T00:00:00Z')."
         )
       }
-      whoseClauses.append("date received < date \"\(escapeAppleScriptString(formatted))\"")
+      datePrelude += binding
+      whoseClauses.append("date received < beforeDate")
     }
     if let fromContains = input.from_contains {
       let escaped = escapeAppleScriptString(fromContains)
@@ -64,6 +69,7 @@ struct ListMessagesTool {
     let countScript = """
       tell application "Mail"
           \(parsed.resolveScript)
+          \(datePrelude)
           return count of (every message of \(mailboxRef)\(whoseStr))
       end tell
       """
@@ -92,6 +98,7 @@ struct ListMessagesTool {
     let fetchScript = """
       tell application "Mail"
           \(parsed.resolveScript)
+          \(datePrelude)
           set msgs to (every message of \(mailboxRef)\(whoseStr))
           set output to ""
           repeat with i from \(startIdx) to \(endIdx)
@@ -104,19 +111,26 @@ struct ListMessagesTool {
       """
 
     return parseMessageListOutput(
-      fetchScript, total: total, offset: offset, endIdx: endIdx, cache: cache)
+      fetchScript, total: total, offset: offset, endIdx: endIdx, cache: cache,
+      mailboxPath: input.mailbox_path)
   }
 }
 
 // MARK: - Shared Message List Parsing
 
 /// Run a message-list script and parse its output into a paginated JSON response.
+///
+/// `mailboxPath` is the `Account/Mailbox` the rows came from; it is cached alongside
+/// each message's internal id so later read/move calls can address the message
+/// directly instead of via the front message viewer.
 func parseMessageListOutput(
-  _ script: String, total: Int, offset: Int, endIdx: Int, cache: MessageCache
+  _ script: String, total: Int, offset: Int, endIdx: Int, cache: MessageCache,
+  mailboxPath: String? = nil
 ) -> String {
   switch runAppleScript(script) {
   case .success(let output):
-    return renderMessageListJSON(output, total: total, offset: offset, endIdx: endIdx, cache: cache)
+    return renderMessageListJSON(
+      output, total: total, offset: offset, endIdx: endIdx, cache: cache, mailboxPath: mailboxPath)
   case .error(let code, let message):
     return code.json(message: message)
   }
@@ -124,10 +138,11 @@ func parseMessageListOutput(
 
 /// Parse tab-delimited, field-encoded message list output into a paginated JSON response.
 func renderMessageListJSON(
-  _ output: String, total: Int, offset: Int, endIdx: Int, cache: MessageCache
+  _ output: String, total: Int, offset: Int, endIdx: Int, cache: MessageCache,
+  mailboxPath: String? = nil
 ) -> String {
   var messages: [[String: Any]] = []
-  var cacheEntries: [(messageID: String, internalID: Int)] = []
+  var cacheEntries: [(messageID: String, internalID: Int, mailboxPath: String?)] = []
   let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
 
   for line in lines {
@@ -151,7 +166,7 @@ func renderMessageListJSON(
       "is_flagged": parts[5] == "true",
       "has_attachments": parts[6] == "true",
     ])
-    cacheEntries.append((messageID: messageID, internalID: internalID))
+    cacheEntries.append((messageID: messageID, internalID: internalID, mailboxPath: mailboxPath))
   }
 
   cache.populateFromMessages(cacheEntries)
