@@ -31,20 +31,25 @@ struct SearchMessagesTool {
     var whoseClauses: [String] = [
       "(subject contains \"\(escapedQuery)\" or sender contains \"\(escapedQuery)\")"
     ]
+    // Date bounds are bound to variables (locale-independent) and referenced by name
+    // in the whose clause; the bindings are emitted at the top of each script.
+    var datePrelude = ""
     if let since = input.since {
-      guard let formatted = formatDateForAppleScript(since) else {
+      guard let binding = appleScriptDateBinding("sinceDate", iso8601: since) else {
         return MailPluginError.invalidParameter.json(
           message: "Invalid 'since' date: '\(since)'. Use ISO 8601 (e.g. '2025-02-01T00:00:00Z').")
       }
-      whoseClauses.append("date received > date \"\(escapeAppleScriptString(formatted))\"")
+      datePrelude += binding
+      whoseClauses.append("date received > sinceDate")
     }
     if let before = input.before {
-      guard let formatted = formatDateForAppleScript(before) else {
+      guard let binding = appleScriptDateBinding("beforeDate", iso8601: before) else {
         return MailPluginError.invalidParameter.json(
           message: "Invalid 'before' date: '\(before)'. Use ISO 8601 (e.g. '2025-02-01T00:00:00Z')."
         )
       }
-      whoseClauses.append("date received < date \"\(escapeAppleScriptString(formatted))\"")
+      datePrelude += binding
+      whoseClauses.append("date received < beforeDate")
     }
 
     let whoseStr = whoseClauses.joined(separator: " and ")
@@ -57,18 +62,18 @@ struct SearchMessagesTool {
       }
       let searchScope = "every message of \(parsed.mailboxRef)"
       return searchInMailbox(
-        searchScope: searchScope, resolveScript: parsed.resolveScript, whoseStr: whoseStr,
-        limit: limit, offset: offset, cache: cache)
+        searchScope: searchScope, resolveScript: parsed.resolveScript + "\n" + datePrelude,
+        whoseStr: whoseStr, limit: limit, offset: offset, cache: cache, mailboxPath: mailboxPath)
     } else {
       return searchAllMailboxes(
-        whoseStr: whoseStr,
+        datePrelude: datePrelude, whoseStr: whoseStr,
         limit: limit, offset: offset, cache: cache)
     }
   }
 
   private func searchInMailbox(
     searchScope: String, resolveScript: String, whoseStr: String,
-    limit: Int, offset: Int, cache: MessageCache
+    limit: Int, offset: Int, cache: MessageCache, mailboxPath: String
   ) -> String {
     let countScript = """
       tell application "Mail"
@@ -112,15 +117,17 @@ struct SearchMessagesTool {
       """
 
     return parseMessageListOutput(
-      fetchScript, total: total, offset: offset, endIdx: endIdx, cache: cache)
+      fetchScript, total: total, offset: offset, endIdx: endIdx, cache: cache,
+      mailboxPath: mailboxPath)
   }
 
   private func searchAllMailboxes(
-    whoseStr: String,
+    datePrelude: String, whoseStr: String,
     limit: Int, offset: Int, cache: MessageCache
   ) -> String {
     let script = """
       tell application "Mail"
+          \(datePrelude)
           set output to ""
           set totalFound to 0
           set collected to 0
